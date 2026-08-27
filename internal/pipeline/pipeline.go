@@ -3,12 +3,17 @@ package pipeline
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/frozeniceee/Reconpipeline/internal/intelligence/asset"
+	"github.com/frozeniceee/Reconpipeline/internal/intelligence/dns"
+	"github.com/frozeniceee/Reconpipeline/internal/intelligence/status"
+	"github.com/frozeniceee/Reconpipeline/internal/intelligence/tech"
 	"github.com/frozeniceee/Reconpipeline/internal/logging"
 	"github.com/frozeniceee/Reconpipeline/internal/scope"
 	"github.com/frozeniceee/Reconpipeline/internal/tools/gau"
@@ -106,10 +111,23 @@ func (p *Pipeline) Run(ctx context.Context) error {
 	var err error
 
 	// ─── Stage 01: Subdomain Discovery ───────────────────────────────────────
-	subdomainsFile := filepath.Join(stageDir(1, "subdomain-discovery"), "subdomains.txt")
+	stage1Dir := stageDir(1, "subdomain-discovery")
+	subdomainsFile := filepath.Join(stage1Dir, "subdomains.txt")
 	if !p.shouldSkip("subdomain-discovery") {
 		err = p.runStage(ctx, "subdomain-discovery", func() error {
-			return p.subfinder.Run(ctx, p.target.Domain, subdomainsFile, p.opts.Threads)
+			if subErr := p.subfinder.Run(ctx, p.target.Domain, subdomainsFile, p.opts.Threads); subErr != nil {
+				return subErr
+			}
+			// Intelligent Asset Classification
+			classifier := asset.NewClassifier()
+			assets, _ := classifier.ProcessSubdomains(subdomainsFile, stage1Dir)
+			p.state.Counters.AssetsClassified = len(assets)
+
+			// DNS Intelligence Gathering
+			dnsEngine := dns.NewEngine(p.opts.Threads)
+			dnsRecs, _ := dnsEngine.ProcessSubdomains(ctx, subdomainsFile, filepath.Join(stage1Dir, "dns"))
+			p.state.Counters.DNSResolved = len(dnsRecs)
+			return nil
 		})
 		if err != nil {
 			return err
@@ -120,9 +138,21 @@ func (p *Pipeline) Run(ctx context.Context) error {
 	// ─── Stage 02: Live Host Detection ───────────────────────────────────────
 	liveHostDir := stageDir(2, "live-host-detection")
 	liveHostsFile := filepath.Join(liveHostDir, "live-hosts.txt")
+	metaFile := filepath.Join(liveHostDir, "metadata.json")
 	if !p.shouldSkip("live-host-detection") {
 		err = p.runStage(ctx, "live-host-detection", func() error {
-			return p.httpx.Run(ctx, subdomainsFile, liveHostDir, p.opts.Threads)
+			if hErr := p.httpx.Run(ctx, subdomainsFile, liveHostDir, p.opts.Threads); hErr != nil {
+				return hErr
+			}
+			// Technology Intelligence Grouping
+			techEngine := tech.NewEngine()
+			groups, _ := techEngine.ProcessMetadata(metaFile, filepath.Join(liveHostDir, "technologies"))
+			p.state.Counters.TechnologiesDetected = len(groups)
+
+			// HTTP Status Intelligence Organization
+			statusEngine := status.NewEngine()
+			_, _ = statusEngine.ProcessMetadata(metaFile, filepath.Join(liveHostDir, "status"))
+			return nil
 		})
 		if err != nil {
 			return err
@@ -163,7 +193,13 @@ func (p *Pipeline) Run(ctx context.Context) error {
 			go func() {
 				defer wg.Done()
 				katanaErr = p.runStage(ctx, "active-crawling", func() error {
-					return p.katana.Run(ctx, liveHostsFile, scope.RootDomain(p.target.Domain), katanaFile, p.opts.Threads)
+					kErr := p.katana.Run(ctx, liveHostsFile, scope.RootDomain(p.target.Domain), katanaFile, p.opts.Threads)
+					// Mirror into katana/ subfolder for organized view
+					katanaSub := filepath.Join(stageDir(3, "active-crawling"), "katana", "urls.txt")
+					if data, readErr := os.ReadFile(katanaFile); readErr == nil {
+						_ = os.WriteFile(katanaSub, data, 0640)
+					}
+					return kErr
 				})
 			}()
 		}
@@ -173,7 +209,13 @@ func (p *Pipeline) Run(ctx context.Context) error {
 			go func() {
 				defer wg.Done()
 				gauErr = p.runStage(ctx, "historical-url-discovery", func() error {
-					return p.gau.Run(ctx, liveHostsFile, p.target.Domain, gauFile, p.opts.Threads)
+					gErr := p.gau.Run(ctx, liveHostsFile, p.target.Domain, gauFile, p.opts.Threads)
+					// Mirror into gau/ subfolder for organized view
+					gauSub := filepath.Join(stageDir(4, "historical-url-discovery"), "gau", "urls.txt")
+					if data, readErr := os.ReadFile(gauFile); readErr == nil {
+						_ = os.WriteFile(gauSub, data, 0640)
+					}
+					return gErr
 				})
 			}()
 		} else if p.opts.Mode == "active" {
@@ -194,7 +236,7 @@ func (p *Pipeline) Run(ctx context.Context) error {
 	p.state.Counters.KatanaURLs = urlprocessor.CountLines(katanaFile)
 	p.state.Counters.GAUURLs = urlprocessor.CountLines(gauFile)
 
-	// ─── Stage 05: URL Processing ─────────────────────────────────────────────
+	// ─── Stage 05: URL Processing (Smart URL Engine) ──────────────────────────
 	urlProcDir := stageDir(5, "url-processing")
 	var urlResults *urlprocessor.Results
 	if !p.shouldSkip("url-processing") {
@@ -214,9 +256,13 @@ func (p *Pipeline) Run(ctx context.Context) error {
 		p.state.Counters.JavaScriptURLs = urlResults.JavaScript
 		p.state.Counters.ParamURLs = urlResults.Parameterised
 		p.state.Counters.InterestingURLs = urlResults.Interesting
+		p.state.Counters.URLClusters = urlResults.TotalClusters
+		p.state.Counters.HighPriorityURLs = urlResults.HighPriority
+		p.state.Counters.MediumPriorityURLs = urlResults.MediumPriority
+		p.state.Counters.LowPriorityURLs = urlResults.LowPriority
 	}
 
-	// ─── Stage 06: Pattern Analysis ──────────────────────────────────────────
+	// ─── Stage 06: Pattern Analysis (GF) ─────────────────────────────────────
 	patternDir := stageDir(6, "pattern-analysis")
 	uniqueURLsFile := filepath.Join(urlProcDir, "unique-urls.txt")
 	if !p.shouldSkip("pattern-analysis") {
@@ -228,6 +274,19 @@ func (p *Pipeline) Run(ctx context.Context) error {
 				p.state.Counters.LFIMatches = counts["lfi"]
 				p.state.Counters.SSRFMatches = counts["ssrf"]
 				p.state.Counters.RedirectMatches = counts["redirect"]
+
+				// Write pattern summary JSON
+				summaryData, _ := json.MarshalIndent(counts, "", "  ")
+				_ = os.WriteFile(filepath.Join(patternDir, "patterns", "pattern-summary.json"), summaryData, 0640)
+
+				// Mirror patterns into gf/ directory
+				for pName := range counts {
+					src := filepath.Join(patternDir, pName+".txt")
+					dst := filepath.Join(patternDir, "gf", pName+".txt")
+					if d, rErr := os.ReadFile(src); rErr == nil {
+						_ = os.WriteFile(dst, d, 0640)
+					}
+				}
 			}
 			return runErr
 		})
@@ -235,6 +294,16 @@ func (p *Pipeline) Run(ctx context.Context) error {
 			warnings = append(warnings, fmt.Sprintf("Pattern Analysis encountered an error: %v", err))
 		}
 	}
+
+	// ─── Generate Summary Folder ──────────────────────────────────────────────
+	summaryDir := filepath.Join(targetDir, "summary")
+	_ = os.MkdirAll(summaryDir, 0750)
+	statsJSON, _ := json.MarshalIndent(p.state.Counters, "", "  ")
+	_ = os.WriteFile(filepath.Join(summaryDir, "statistics.json"), statsJSON, 0640)
+
+	summaryTxt := fmt.Sprintf("Target: %s\nMode: %s\nSubdomains: %d\nLive Hosts: %d\nUnique URLs: %d\nAPI URLs: %d\nJS URLs: %d\nParameters: %d\nClusters: %d\nHigh Priority: %d\n",
+		p.target.Domain, p.opts.Mode, p.state.Counters.Subdomains, p.state.Counters.LiveHosts, p.state.Counters.UniqueURLs, p.state.Counters.APIURLs, p.state.Counters.JavaScriptURLs, p.state.Counters.ParamURLs, p.state.Counters.URLClusters, p.state.Counters.HighPriorityURLs)
+	_ = os.WriteFile(filepath.Join(summaryDir, "summary.txt"), []byte(summaryTxt), 0640)
 
 	// Finalise.
 	for _, w := range warnings {

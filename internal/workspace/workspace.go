@@ -58,24 +58,38 @@ func (m *Manager) StageDir(targetDir string, stage int, name string) string {
 	return filepath.Join(targetDir, fmt.Sprintf("%02d-%s", stage, name))
 }
 
-// InitTargetDirs creates all stage directories for a target.
+// InitTargetDirs creates all stage directories and intelligence subdirectories for a target.
 func (m *Manager) InitTargetDirs(targetDir string) error {
-	stages := []struct {
-		n    int
-		name string
-	}{
-		{1, "subdomain-discovery"},
-		{2, "live-host-detection"},
-		{3, "active-crawling"},
-		{4, "historical-url-discovery"},
-		{5, "url-processing"},
-		{6, "pattern-analysis"},
+	dirs := []string{
+		filepath.Join(targetDir, "01-subdomain-discovery"),
+		filepath.Join(targetDir, "01-subdomain-discovery", "dns"),
+		filepath.Join(targetDir, "01-subdomain-discovery", "classified"),
+		filepath.Join(targetDir, "02-live-host-detection"),
+		filepath.Join(targetDir, "02-live-host-detection", "status"),
+		filepath.Join(targetDir, "02-live-host-detection", "technologies"),
+		filepath.Join(targetDir, "03-active-crawling"),
+		filepath.Join(targetDir, "03-active-crawling", "katana"),
+		filepath.Join(targetDir, "04-historical-url-discovery"),
+		filepath.Join(targetDir, "04-historical-url-discovery", "gau"),
+		filepath.Join(targetDir, "05-url-processing"),
+		filepath.Join(targetDir, "05-url-processing", "raw"),
+		filepath.Join(targetDir, "05-url-processing", "normalized"),
+		filepath.Join(targetDir, "05-url-processing", "deduplicated"),
+		filepath.Join(targetDir, "05-url-processing", "api"),
+		filepath.Join(targetDir, "05-url-processing", "javascript"),
+		filepath.Join(targetDir, "05-url-processing", "parameters"),
+		filepath.Join(targetDir, "05-url-processing", "clusters"),
+		filepath.Join(targetDir, "05-url-processing", "interesting"),
+		filepath.Join(targetDir, "05-url-processing", "priority"),
+		filepath.Join(targetDir, "06-pattern-analysis"),
+		filepath.Join(targetDir, "06-pattern-analysis", "gf"),
+		filepath.Join(targetDir, "06-pattern-analysis", "patterns"),
+		filepath.Join(targetDir, "summary"),
 	}
 
-	for _, s := range stages {
-		d := m.StageDir(targetDir, s.n, s.name)
+	for _, d := range dirs {
 		if err := os.MkdirAll(d, 0750); err != nil {
-			return fmt.Errorf("failed to create stage directory %q: %w", d, err)
+			return fmt.Errorf("failed to create directory %q: %w", d, err)
 		}
 	}
 	return nil

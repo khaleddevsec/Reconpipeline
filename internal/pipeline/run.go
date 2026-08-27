@@ -45,6 +45,15 @@ type Counters struct {
 	ParamURLs       int `json:"parameterized_urls"`
 	InterestingURLs int `json:"interesting_urls"`
 
+	// V2.0 Intelligent Core Metrics
+	DNSResolved          int `json:"dns_resolved,omitempty"`
+	AssetsClassified     int `json:"assets_classified,omitempty"`
+	TechnologiesDetected int `json:"technologies_detected,omitempty"`
+	URLClusters          int `json:"url_clusters,omitempty"`
+	HighPriorityURLs     int `json:"high_priority_urls,omitempty"`
+	MediumPriorityURLs   int `json:"medium_priority_urls,omitempty"`
+	LowPriorityURLs      int `json:"low_priority_urls,omitempty"`
+
 	// Pattern match counts.
 	XSSMatches      int `json:"xss_matches"`
 	SQLiMatches     int `json:"sqli_matches"`
