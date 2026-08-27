@@ -34,3 +34,4 @@ vendor/
 *.tmp
 *.bak
 *.update.tmp
+reconpipeline
