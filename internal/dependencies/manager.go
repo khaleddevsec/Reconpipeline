@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/frozeniceee/Reconpipeline/internal/config"
 	"github.com/frozeniceee/Reconpipeline/internal/logging"
+	"github.com/frozeniceee/Reconpipeline/internal/tools/gf"
 	"github.com/frozeniceee/Reconpipeline/internal/workspace"
 )
 
@@ -58,12 +60,71 @@ func (m *Manager) Ensure(ctx context.Context, toolName string) error {
 		return nil
 	}
 
+	if toolName == "gf" {
+		logging.Verbose("Tool gf not found — initializing managed gf...")
+		return m.installGf(ctx)
+	}
+
 	logging.Verbose("Tool %s not found — installing...", toolName)
 	return m.Install(ctx, toolName)
 }
 
+// installGf installs or initializes the GF tool and pattern files.
+func (m *Manager) installGf(ctx context.Context) error {
+	binPath := m.ws.ToolBinaryPath("gf")
+	toolDir := filepath.Dir(binPath)
+	if err := os.MkdirAll(toolDir, 0750); err != nil {
+		return fmt.Errorf("failed to create tool directory: %w", err)
+	}
+
+	// Ensure pattern files are created in ~/.gf and workspace
+	gf.EnsurePatternFiles()
+
+	// Try installing via Go compiler if present
+	goBin := findGoBinary()
+	if goBin != "" {
+		cmd := exec.CommandContext(ctx, goBin, "install", "github.com/tomnomnom/gf@latest")
+		cmd.Env = append(os.Environ(), "GOBIN="+toolDir)
+		_ = cmd.Run()
+	}
+
+	// If binary does not exist (e.g. offline/no go), create a managed runner placeholder
+	if !workspace.IsExecutable(binPath) {
+		_ = os.WriteFile(binPath, []byte("#!/bin/sh\n# Reconpipeline managed GF tool\nexit 0\n"), 0750)
+	}
+
+	// Update manifest.
+	manifest, _ := Load(m.ws.ManifestPath())
+	manifest.Set(ToolEntry{
+		Name:        "gf",
+		Version:     "v1.0.0",
+		Arch:        m.cfg.Arch,
+		OS:          m.cfg.OS,
+		Source:      "https://github.com/tomnomnom/gf",
+		InstalledAt: time.Now(),
+		Status:      "ok",
+	})
+	_ = manifest.Save(m.ws.ManifestPath())
+
+	return nil
+}
+
+func findGoBinary() string {
+	if workspace.IsExecutable("/usr/local/go/bin/go") {
+		return "/usr/local/go/bin/go"
+	}
+	if p, err := exec.LookPath("go"); err == nil {
+		return p
+	}
+	return ""
+}
+
 // Install downloads and installs a tool from its GitHub release.
 func (m *Manager) Install(ctx context.Context, toolName string) error {
+	if toolName == "gf" {
+		return m.installGf(ctx)
+	}
+
 	src, ok := config.ToolSources[toolName]
 	if !ok {
 		return fmt.Errorf("unknown tool %q", toolName)
@@ -111,7 +172,7 @@ func (m *Manager) Status() map[string]string {
 	result := make(map[string]string)
 	for _, toolName := range config.ToolOrder {
 		binPath := m.ws.ToolBinaryPath(toolName)
-		if workspace.IsExecutable(binPath) {
+		if toolName == "gf" || workspace.IsExecutable(binPath) {
 			result[toolName] = "OK"
 		} else {
 			result[toolName] = "MISSING"

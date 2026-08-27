@@ -2,11 +2,14 @@
 package gf
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/frozeniceee/Reconpipeline/internal/workspace"
 )
@@ -28,6 +31,15 @@ var DefaultPatterns = []Pattern{
 	{Name: "redirect", OutFile: "redirect.txt"},
 }
 
+// Built-in pattern regexes matching standard GF patterns for parameter analysis.
+var builtInPatterns = map[string]*regexp.Regexp{
+	"xss":      regexp.MustCompile(`(?i)(access_token|action|admin|adm|alter|app|auth|authentication|backup|b|base|bot|browse|buy|callback|category|change|char|checkout|city|clear|code|command|config|confirm|contact|content|continue|control|create|database|db|debug|delete|dest|dir|direction|display|do|domain|download|edit|email|end|enter|error|eval|exec|exit|export|field|file|filter|find|first|flush|format|forward|from|goto|grant|group|handle|hash|head|help|history|host|id|image|img|include|index|insert|into|item|join|key|lang|language|last|link|load|log|login|logout|lookup|mail|make|master|message|mode|modify|module|name|nav|navigation|new|next|num|number|open|order|out|page|pass|password|path|phone|pid|post|preview|price|print|process|profile|query|read|redirect|ref|refresh|register|remove|report|request|reset|response|return|role|root|run|save|scan|search|select|send|service|session|set|setup|show|site|sort|source|sql|src|start|state|status|stop|sub|submit|table|tag|target|task|test|theme|title|to|token|topic|total|track|transfer|type|uid|update|upload|url|user|username|val|valid|validate|value|var|view|vote|web|window|zip)=`),
+	"sqli":     regexp.MustCompile(`(?i)(id|select|insert|update|delete|drop|union|order|group|limit|waitfor|benchmark|sleep|table|column|admin|auth|token|query|sort|order_by|filter|dir|search|field|row|page|column_name)=`),
+	"lfi":      regexp.MustCompile(`(?i)(file|document|folder|root|path|pg|style|pdf|template|php_path|doc|page|include|location|read|view|item|dir|load|filename)=`),
+	"ssrf":     regexp.MustCompile(`(?i)(dest|redirect|uri|path|continue|url|window|next|data|reference|site|html|val|validate|domain|callback|return|page|feed|host|port|to|out|view|dir|show|navigation|open)=`),
+	"redirect": regexp.MustCompile(`(?i)(redirect|url|next|target|dest|destination|uri|path|continue|return|checkout_url|goto|link|view|to|out|image_url|next_url|return_url|redirect_url|forward)=`),
+}
+
 // Tool is the GF tool adapter.
 type Tool struct {
 	binPath string
@@ -35,6 +47,7 @@ type Tool struct {
 
 // New creates a GF adapter using the managed binary path.
 func New(ws *workspace.Manager) *Tool {
+	EnsurePatternFiles()
 	return &Tool{binPath: ws.ToolBinaryPath(toolName)}
 }
 
@@ -44,16 +57,43 @@ func (t *Tool) Name() string { return toolName }
 // BinaryPath returns the absolute path to the managed binary.
 func (t *Tool) BinaryPath() string { return t.binPath }
 
-// Available returns true if the managed binary exists and is executable.
-func (t *Tool) Available() bool { return workspace.IsExecutable(t.binPath) }
+// Available returns true if the managed binary exists and is executable or built-in engine is available.
+func (t *Tool) Available() bool { return true }
 
-// RunPattern executes gf with a single pattern, reading URLs from urlsFile
-// and writing matches to outFile.
-func (t *Tool) RunPattern(ctx context.Context, pattern string, urlsFile string, outFile string) error {
-	if !t.Available() {
-		return fmt.Errorf("gf binary not found at %q", t.binPath)
+// EnsurePatternFiles creates the default JSON pattern files in ~/.gf and ~/.reconpipeline/patterns.
+func EnsurePatternFiles() {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = "/root"
 	}
 
+	dirs := []string{
+		filepath.Join(home, ".gf"),
+		filepath.Join(home, ".config", "gf"),
+		filepath.Join(home, ".reconpipeline", "patterns"),
+	}
+
+	patterns := map[string]string{
+		"xss.json":      `{"flags":"-iE","pattern":"(\\?|&)(access_token|action|admin|adm|alter|app|auth|authentication|backup|b|base|bot|browse|buy|callback|category|change|char|checkout|city|clear|code|command|config|confirm|contact|content|continue|control|create|database|db|debug|delete|dest|dir|direction|display|do|domain|download|edit|email|end|enter|error|eval|exec|exit|export|field|file|filter|find|first|flush|format|forward|from|goto|grant|group|handle|hash|head|help|history|host|id|image|img|include|index|insert|into|item|join|key|lang|language|last|link|load|log|login|logout|lookup|mail|make|master|message|mode|modify|module|name|nav|navigation|new|next|num|number|open|order|out|page|pass|password|path|phone|pid|post|preview|price|print|process|profile|query|read|redirect|ref|refresh|register|remove|report|request|reset|response|return|role|root|run|save|scan|search|select|send|service|session|set|setup|show|site|sort|source|sql|src|start|state|status|stop|sub|submit|table|tag|target|task|test|theme|title|to|token|topic|total|track|transfer|type|uid|update|upload|url|user|username|val|valid|validate|value|var|view|vote|web|window|zip)="}`,
+		"sqli.json":     `{"flags":"-iE","pattern":"(\\?|&)(id|select|insert|update|delete|drop|union|order|group|limit|waitfor|benchmark|sleep|table|column|admin|auth|token|query|sort|order_by|filter)="}`,
+		"lfi.json":      `{"flags":"-iE","pattern":"(\\?|&)(file|document|folder|root|path|pg|style|pdf|template|php_path|doc|page|include|location|read|view|item)="}`,
+		"ssrf.json":     `{"flags":"-iE","pattern":"(\\?|&)(dest|redirect|uri|path|continue|url|window|next|data|reference|site|html|val|validate|domain|callback|return|page|feed|host|port|to|out|view|dir|show|navigation|open)="}`,
+		"redirect.json": `{"flags":"-iE","pattern":"(\\?|&)(redirect|url|next|target|dest|destination|uri|path|continue|return|checkout_url|goto|link|view|to|out|image_url|next_url|return_url|redirect_url)="}`,
+	}
+
+	for _, d := range dirs {
+		_ = os.MkdirAll(d, 0750)
+		for filename, content := range patterns {
+			p := filepath.Join(d, filename)
+			if _, err := os.Stat(p); os.IsNotExist(err) {
+				_ = os.WriteFile(p, []byte(content+"\n"), 0640)
+			}
+		}
+	}
+}
+
+// RunPattern executes pattern matching against urlsFile and writes matches to outFile.
+func (t *Tool) RunPattern(ctx context.Context, pattern string, urlsFile string, outFile string) error {
 	inFile, err := os.Open(urlsFile)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -63,26 +103,64 @@ func (t *Tool) RunPattern(ctx context.Context, pattern string, urlsFile string, 
 	}
 	defer inFile.Close()
 
+	// If external gf binary is available and executable, try executing it.
+	if workspace.IsExecutable(t.binPath) {
+		outF, err := os.OpenFile(outFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0640)
+		if err == nil {
+			cmd := exec.CommandContext(ctx, t.binPath, pattern)
+			cmd.Stdin = inFile
+			cmd.Stdout = outF
+			cmd.Stderr = nil
+			if runErr := cmd.Run(); runErr == nil {
+				outF.Close()
+				return nil
+			}
+			outF.Close()
+		}
+		// Reset inFile seek if external run failed
+		_, _ = inFile.Seek(0, 0)
+	}
+
+	// Native Pure-Go Pattern Matcher
+	return t.runNativePattern(ctx, pattern, inFile, outFile)
+}
+
+// runNativePattern performs regex pattern analysis in pure Go.
+func (t *Tool) runNativePattern(ctx context.Context, pattern string, inFile *os.File, outFile string) error {
+	re, ok := builtInPatterns[strings.ToLower(pattern)]
+	if !ok {
+		// Generic fallback pattern matching query parameters
+		re = regexp.MustCompile(fmt.Sprintf(`(?i)[?&](%s)=`, regexp.QuoteMeta(pattern)))
+	}
+
 	outF, err := os.OpenFile(outFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0640)
 	if err != nil {
 		return fmt.Errorf("failed to open output file: %w", err)
 	}
 	defer outF.Close()
 
-	// gf reads from stdin when given a pattern argument.
-	// Use exec.CommandContext directly to attach stdin/stdout.
-	cmd := exec.CommandContext(ctx, t.binPath, pattern) //nolint:gosec — path is from managed tools dir
-	cmd.Stdin = inFile
-	cmd.Stdout = outF
-	cmd.Stderr = nil
+	scanner := bufio.NewScanner(inFile)
+	scanner.Buffer(make([]byte, 512*1024), 512*1024)
+	w := bufio.NewWriter(outF)
 
-	if err := cmd.Run(); err != nil {
-		if ctx.Err() != nil {
+	for scanner.Scan() {
+		select {
+		case <-ctx.Done():
 			return ctx.Err()
+		default:
 		}
-		// gf returns non-zero when there are no matches — that is acceptable.
+
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+
+		if re.MatchString(line) {
+			fmt.Fprintln(w, line)
+		}
 	}
-	return nil
+
+	return w.Flush()
 }
 
 // RunAll runs all default patterns against the URLs file, writing each

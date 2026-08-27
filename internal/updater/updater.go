@@ -42,6 +42,29 @@ type CheckResult struct {
 	AssetName       string
 }
 
+// GetVersionStatus returns the version string with status:
+// "v2.5.0 (Latest)" or "v2.5.0 (Update available: v2.6.0 -> Run 'reconpipeline update')"
+// or "v2.5.0" if offline.
+func GetVersionStatus(ctx context.Context) string {
+	checkCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	result, err := Check(checkCtx)
+	if err != nil || result == nil {
+		return version.Version
+	}
+
+	if result.UpdateAvailable {
+		return fmt.Sprintf("%s (Update available: %s -> Run 'reconpipeline update')", result.CurrentVersion, result.LatestVersion)
+	}
+
+	if result.LatestVersion != "" {
+		return fmt.Sprintf("%s (Latest)", result.CurrentVersion)
+	}
+
+	return version.Version
+}
+
 // Check queries GitHub for the latest release and compares versions.
 func Check(ctx context.Context) (*CheckResult, error) {
 	apiURL := fmt.Sprintf("%s/repos/%s/%s/releases/latest", githubAPIBase, githubOwner, githubRepo)

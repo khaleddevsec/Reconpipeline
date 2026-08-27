@@ -137,7 +137,9 @@ func runMain(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(args) == 0 {
-		return cmd.Help()
+		printBanner()
+		printUsage()
+		return nil
 	}
 
 	cfg := config.NewConfig()
@@ -337,12 +339,44 @@ func printBanner() {
 	fmt.Println()
 	fmt.Println("Reconpipeline")
 	fmt.Println("Made by frozeniceee")
-	fmt.Printf("Version: %s\n", version.Version)
+	vStatus := updater.GetVersionStatus(context.Background())
+	fmt.Printf("Version: %s\n", vStatus)
 	fmt.Println()
 }
 
+func printUsage() {
+	fmt.Println(`Reconpipeline - Automated Reconnaissance Pipeline
+
+Usage:
+
+    reconpipeline <target>
+
+Commands:
+
+    version       Show version
+    update        Update Reconpipeline
+    doctor        Check system and dependencies
+
+Options:
+
+    -h, --help
+    -v, --version
+
+    --resume
+    --output <dir>
+    --mode <mode>
+    --dry-run
+
+    --timeout <duration>
+    --threads <number>
+
+    --quiet
+    --verbose`)
+}
+
 func versionString() string {
-	return fmt.Sprintf("Reconpipeline %s\nMade by frozeniceee", version.Version)
+	vStatus := updater.GetVersionStatus(context.Background())
+	return fmt.Sprintf("Reconpipeline %s\nMade by frozeniceee", vStatus)
 }
 
 func modeLabel(mode string) string {

@@ -146,8 +146,9 @@ ok
 
 # ─── [08] Preparing Dependencies ─────────────────────────────────────────────
 step 8 "Preparing Dependencies"
-# Dependencies are downloaded on first use by the reconpipeline binary itself.
-# We touch the manifest to indicate a fresh installation.
+mkdir -p "${HOME}/.gf" "${RUNTIME_DIR}/patterns"
+GOBIN="${RUNTIME_DIR}/tools/gf" "$GO_BIN" install github.com/tomnomnom/gf@latest >/dev/null 2>&1 || true
+
 MANIFEST="${RUNTIME_DIR}/versions/manifest.json"
 if [[ ! -f "$MANIFEST" ]]; then
     echo '{"tools":{}}' > "$MANIFEST"
