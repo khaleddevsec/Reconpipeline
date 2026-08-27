@@ -166,8 +166,14 @@ func (p *Pipeline) Run(ctx context.Context) error {
 	metaFile := filepath.Join(stage2Dir, "metadata.json")
 	if !p.shouldSkip("live-host-detection", liveHostsFile) {
 		err = p.runStage(ctx, "live-host-detection", stage2Dir, func() error {
-			if hErr := p.httpx.Run(ctx, subdomainsFile, liveHostsFile, p.opts.Threads); hErr != nil {
+			if hErr := p.httpx.Run(ctx, subdomainsFile, stage2Dir, p.opts.Threads); hErr != nil {
 				return hErr
+			}
+
+			// If no live hosts detected from subdomains, seed target as fallback
+			if urlprocessor.CountLines(liveHostsFile) == 0 {
+				seedHosts := fmt.Sprintf("https://%s\nhttp://%s\n", p.target.Domain, p.target.Domain)
+				_ = os.WriteFile(liveHostsFile, []byte(seedHosts), 0640)
 			}
 
 			// Technology Intelligence Gathering
