@@ -1,0 +1,36 @@
+# Binaries and build output
+dist/
+*.exe
+
+# Runtime workspace (managed at ~/.reconpipeline by default)
+# Do not commit personal workspace state
+.reconpipeline/
+
+# Scan results (user data — never commit)
+results/
+
+# Go build cache
+*.test
+*.out
+
+# Dependency vendor directory (if used)
+vendor/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Log files
+*.log
+
+# Local environment overrides
+.env
+.env.local
+
+# Temporary files
+*.tmp
+*.bak
+*.update.tmp

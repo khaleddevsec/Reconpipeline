@@ -1,0 +1,29 @@
+{
+  "tools": {
+    "subfinder": {
+      "github_owner": "projectdiscovery",
+      "github_repo": "subfinder",
+      "binary_name": "subfinder"
+    },
+    "httpx": {
+      "github_owner": "projectdiscovery",
+      "github_repo": "httpx",
+      "binary_name": "httpx"
+    },
+    "katana": {
+      "github_owner": "projectdiscovery",
+      "github_repo": "katana",
+      "binary_name": "katana"
+    },
+    "gau": {
+      "github_owner": "lc",
+      "github_repo": "gau",
+      "binary_name": "gau"
+    },
+    "gf": {
+      "github_owner": "tomnomnom",
+      "github_repo": "gf",
+      "binary_name": "gf"
+    }
+  }
+}
