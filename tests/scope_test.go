@@ -120,7 +120,8 @@ func TestRootDomain(t *testing.T) {
 		{"example.com", "example.com"},
 		{"api.example.com", "example.com"},
 		{"v2.api.example.com", "example.com"},
-		{"sub.sub.sub.example.co.uk", "co.uk"},
+		{"sub.sub.sub.example.co.uk", "example.co.uk"},
+		{"www.ingenium.co.th", "ingenium.co.th"},
 	}
 	for _, tt := range tests {
 		got := scope.RootDomain(tt.input)

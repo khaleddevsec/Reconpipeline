@@ -4,6 +4,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -127,7 +128,17 @@ func (p *Pipeline) Run(ctx context.Context) error {
 			return err
 		}
 	}
-	p.state.Counters.LiveHosts = urlprocessor.CountLines(liveHostsFile)
+	liveHostsCount := urlprocessor.CountLines(liveHostsFile)
+	if liveHostsCount == 0 {
+		// Fallback: if no live hosts found, seed target host URL so active crawl proceeds
+		targetURL := "https://" + p.target.Domain
+		if p.target.Scheme != "" {
+			targetURL = p.target.Scheme + "://" + p.target.Domain
+		}
+		_ = os.WriteFile(liveHostsFile, []byte(targetURL+"\n"), 0640)
+		liveHostsCount = urlprocessor.CountLines(liveHostsFile)
+	}
+	p.state.Counters.LiveHosts = liveHostsCount
 
 	// ─── Stages 03 + 04: Katana & GAU (concurrent) ───────────────────────────
 	katanaFile := filepath.Join(stageDir(3, "active-crawling"), "katana-urls.txt")

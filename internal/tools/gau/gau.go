@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/frozeniceee/Reconpipeline/internal/executor"
+	"github.com/frozeniceee/Reconpipeline/internal/scope"
 	"github.com/frozeniceee/Reconpipeline/internal/workspace"
 )
 
@@ -32,19 +33,21 @@ func (t *Tool) BinaryPath() string { return t.binPath }
 // Available returns true if the managed binary exists and is executable.
 func (t *Tool) Available() bool { return workspace.IsExecutable(t.binPath) }
 
-// Run executes gau against each host in liveHostsFile, writing discovered
-// historical URLs to outFile.
+// Run executes gau against the root domain and domain to discover historical URLs.
 func (t *Tool) Run(ctx context.Context, liveHostsFile string, domain string, outFile string, threads int) error {
 	if !t.Available() {
 		return fmt.Errorf("gau binary not found at %q", t.binPath)
 	}
 
-	// gau accepts a domain as argument. We run against the root domain to
-	// retrieve all historical URLs associated with it.
+	rootDomain := scope.RootDomain(domain)
+
+	// gau accepts a domain as argument. We run against the root domain with --subs
+	// to retrieve all historical URLs associated with it and all its subdomains.
 	args := []string{
 		"--threads", fmt.Sprintf("%d", threads),
+		"--subs",
 		"--o", outFile,
-		domain,
+		rootDomain,
 	}
 
 	result := executor.Run(ctx, t.binPath, args, executor.Options{})

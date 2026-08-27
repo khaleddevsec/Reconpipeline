@@ -116,12 +116,24 @@ func SafeFilename(domain string) (string, error) {
 }
 
 // RootDomain extracts the root registrable domain from a potentially multi-level subdomain.
-// For example: "api.v2.example.com" → "example.com"
-// This is a simple heuristic; it does not use a full public suffix list.
+// Handles multi-part ccTLDs like .co.th, .co.uk, .com.au, .co.in, etc.
 func RootDomain(domain string) string {
 	parts := strings.Split(domain, ".")
 	if len(parts) <= 2 {
 		return domain
 	}
+
+	// Check for 2-part public suffixes (e.g. co.uk, com.au, co.th, org.uk, net.au, etc.)
+	if len(parts) >= 3 {
+		secondLast := parts[len(parts)-2]
+		last := parts[len(parts)-1]
+		if len(last) == 2 { // ccTLD (uk, th, au, in, jp, br, etc.)
+			switch secondLast {
+			case "co", "com", "org", "net", "edu", "gov", "ac", "or", "go", "ne", "gen", "in":
+				return strings.Join(parts[len(parts)-3:], ".")
+			}
+		}
+	}
+
 	return strings.Join(parts[len(parts)-2:], ".")
 }
