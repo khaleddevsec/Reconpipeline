@@ -1,11 +1,15 @@
-// Package config provides internal configuration for Reconpipeline.
-// Users should not need to modify these settings.
+// Package config provides internal configuration and profile management for Reconpipeline.
 package config
 
 import (
+	"bufio"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -21,6 +25,9 @@ const (
 
 	// DefaultMode is the default scan mode.
 	DefaultMode = "full"
+
+	// DefaultProfile is the default execution profile.
+	DefaultProfile = "full"
 
 	// ManifestFile is the dependency manifest filename.
 	ManifestFile = "manifest.json"
@@ -80,6 +87,59 @@ var ToolSources = map[string]ToolSource{
 // ToolOrder defines the ordered list of managed tools.
 var ToolOrder = []string{"subfinder", "httpx", "katana", "gau", "gf"}
 
+// ProfileConfig represents the execution profile configuration.
+type ProfileConfig struct {
+	Name             string        `json:"name"`
+	Mode             string        `json:"mode"`
+	Threads          int           `json:"threads"`
+	Timeout          time.Duration `json:"timeout"`
+	CrawlDepth       int           `json:"crawl_depth"`
+	EnableHistorical bool          `json:"enable_historical"`
+	EnablePatterns   bool          `json:"enable_patterns"`
+}
+
+// DefaultProfiles holds the built-in profile definitions.
+var DefaultProfiles = map[string]ProfileConfig{
+	"full": {
+		Name:             "full",
+		Mode:             "full",
+		Threads:          10,
+		Timeout:          30 * time.Minute,
+		CrawlDepth:       3,
+		EnableHistorical: true,
+		EnablePatterns:   true,
+	},
+	"fast": {
+		Name:             "fast",
+		Mode:             "full",
+		Threads:          15,
+		Timeout:          15 * time.Minute,
+		CrawlDepth:       1,
+		EnableHistorical: true,
+		EnablePatterns:   true,
+	},
+	"passive": {
+		Name:             "passive",
+		Mode:             "passive",
+		Threads:          10,
+		Timeout:          15 * time.Minute,
+		CrawlDepth:       0,
+		EnableHistorical: true,
+		EnablePatterns:   true,
+	},
+}
+
+// UserSettings represents optional user-configured preferences.
+type UserSettings struct {
+	DefaultProfile   string `json:"default_profile"`
+	DefaultThreads   int    `json:"default_threads"`
+	DefaultTimeout   string `json:"default_timeout"`
+	DefaultOutput    string `json:"default_output"`
+	LogLevel         string `json:"log_level"`
+	CacheEnabled     bool   `json:"cache_enabled"`
+	HistoryRetention int    `json:"history_retention"`
+}
+
 // Config holds the runtime configuration.
 type Config struct {
 	// WorkDir is the managed runtime directory (~/.reconpipeline).
@@ -97,13 +157,16 @@ type Config struct {
 	// ResultsDir is the default results directory.
 	ResultsDir string
 
+	// UserSettings contains preferences loaded from config files.
+	UserSettings UserSettings
+
 	// Arch is the current CPU architecture (amd64, arm64).
 	Arch string
 	// OS is the current operating system (linux).
 	OS string
 }
 
-// NewConfig creates a Config with all paths resolved.
+// NewConfig creates a Config with all paths resolved and loads user settings if available.
 func NewConfig() *Config {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -111,7 +174,7 @@ func NewConfig() *Config {
 	}
 
 	workDir := filepath.Join(home, ".reconpipeline")
-	return &Config{
+	cfg := &Config{
 		WorkDir:     workDir,
 		ToolsDir:    filepath.Join(workDir, "tools"),
 		VersionsDir: filepath.Join(workDir, "versions"),
@@ -119,9 +182,129 @@ func NewConfig() *Config {
 		ConfigDir:   filepath.Join(workDir, "config"),
 		LogsDir:     filepath.Join(workDir, "logs"),
 		ResultsDir:  "results",
-		Arch:        normaliseArch(runtime.GOARCH),
-		OS:          runtime.GOOS,
+		UserSettings: UserSettings{
+			DefaultProfile:   "full",
+			DefaultThreads:   10,
+			DefaultTimeout:   "30m",
+			DefaultOutput:    "results",
+			LogLevel:         "info",
+			CacheEnabled:     true,
+			HistoryRetention: 0,
+		},
+		Arch: normaliseArch(runtime.GOARCH),
+		OS:   runtime.GOOS,
 	}
+
+	cfg.loadUserSettings(home)
+	return cfg
+}
+
+// loadUserSettings attempts to load configuration from ~/.config/reconpipeline/config.yaml
+// or ~/.reconpipeline/config/config.yaml or json equivalents.
+func (c *Config) loadUserSettings(home string) {
+	paths := []string{
+		filepath.Join(home, ".config", "reconpipeline", "config.yaml"),
+		filepath.Join(home, ".config", "reconpipeline", "config.json"),
+		filepath.Join(c.ConfigDir, "config.yaml"),
+		filepath.Join(c.ConfigDir, "config.json"),
+	}
+
+	for _, path := range paths {
+		if data, err := os.ReadFile(path); err == nil {
+			if strings.HasSuffix(path, ".json") {
+				_ = json.Unmarshal(data, &c.UserSettings)
+			} else {
+				parseSimpleYAML(string(data), &c.UserSettings)
+			}
+			return
+		}
+	}
+}
+
+// parseSimpleYAML parses basic key-value configuration lines.
+func parseSimpleYAML(content string, s *UserSettings) {
+	scanner := bufio.NewScanner(strings.NewReader(content))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		val := strings.TrimSpace(parts[1])
+		val = strings.Trim(val, `"'`)
+
+		switch key {
+		case "default_profile", "profile":
+			s.DefaultProfile = val
+		case "default_threads", "threads", "workers", "concurrency":
+			if n, err := strconv.Atoi(val); err == nil && n > 0 {
+				s.DefaultThreads = n
+			}
+		case "default_timeout", "timeout":
+			s.DefaultTimeout = val
+		case "default_output", "output":
+			s.DefaultOutput = val
+		case "log_level", "logging":
+			s.LogLevel = val
+		case "cache_enabled", "cache":
+			s.CacheEnabled = strings.ToLower(val) == "true" || val == "1" || strings.ToLower(val) == "yes"
+		case "history_retention", "retention":
+			if n, err := strconv.Atoi(val); err == nil && n >= 0 {
+				s.HistoryRetention = n
+			}
+		}
+	}
+}
+
+// GetProfile returns a ProfileConfig for the given profile name.
+// Falls back to "full" if the profile is unknown.
+func GetProfile(name string) ProfileConfig {
+	pName := strings.ToLower(strings.TrimSpace(name))
+	if p, ok := DefaultProfiles[pName]; ok {
+		return p
+	}
+	return DefaultProfiles["full"]
+}
+
+// ValidateProfile checks if the profile name is supported.
+func ValidateProfile(name string) error {
+	pName := strings.ToLower(strings.TrimSpace(name))
+	if _, ok := DefaultProfiles[pName]; !ok {
+		return fmt.Errorf("invalid profile %q (supported: full, fast, passive)", name)
+	}
+	return nil
+}
+
+// ValidateOptions checks if runtime options are within valid boundaries.
+func ValidateOptions(threads int, timeoutStr string, mode string, profile string) error {
+	if threads <= 0 {
+		return fmt.Errorf("concurrency threads must be greater than 0, got %d", threads)
+	}
+	if threads > 200 {
+		return fmt.Errorf("concurrency threads must not exceed 200 to prevent denial of service, got %d", threads)
+	}
+	if timeoutStr != "" {
+		dur, err := time.ParseDuration(timeoutStr)
+		if err != nil {
+			return fmt.Errorf("invalid timeout format %q: %w (example: 30m, 1h)", timeoutStr, err)
+		}
+		if dur <= 0 {
+			return fmt.Errorf("timeout must be greater than 0, got %s", timeoutStr)
+		}
+	}
+	if mode != "" && mode != "full" && mode != "active" && mode != "passive" {
+		return fmt.Errorf("invalid mode %q (supported: full, active, passive)", mode)
+	}
+	if profile != "" {
+		if err := ValidateProfile(profile); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // normaliseArch maps Go GOARCH values to the architecture strings used in

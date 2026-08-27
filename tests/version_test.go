@@ -51,8 +51,8 @@ func TestIsNewer_OlderMajor(t *testing.T) {
 }
 
 func TestParseVersion(t *testing.T) {
-	v := updater.ParseVersion("v2.5.2")
-	if v[0] != 2 || v[1] != 5 || v[2] != 2 {
-		t.Errorf("ParseVersion(\"v2.5.2\") = %v, want [2 5 2]", v)
+	v := updater.ParseVersion("v2.5.3")
+	if v[0] != 2 || v[1] != 5 || v[2] != 3 {
+		t.Errorf("ParseVersion(\"v2.5.3\") = %v, want [2 5 3]", v)
 	}
 }

@@ -181,6 +181,28 @@ func (m *Manager) Status() map[string]string {
 	return result
 }
 
+// ToolVersions returns the installed version or status for each tool.
+func (m *Manager) ToolVersions() map[string]string {
+	result := make(map[string]string)
+	manifest, _ := Load(m.ws.ManifestPath())
+
+	for _, toolName := range config.ToolOrder {
+		if entry, ok := manifest.Tools[toolName]; ok && entry.Version != "" {
+			result[toolName] = entry.Version
+		} else if m.Status()[toolName] == "OK" {
+			result[toolName] = "installed"
+		} else {
+			result[toolName] = "not installed"
+		}
+	}
+	return result
+}
+
+// FindGo returns the detected Go compiler path or empty string.
+func FindGo() string {
+	return findGoBinary()
+}
+
 // githubRelease is the subset of the GitHub API response we need.
 type githubRelease struct {
 	TagName string `json:"tag_name"`

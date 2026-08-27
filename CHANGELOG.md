@@ -6,6 +6,25 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## v2.5.3 — V2.2 Optimization, Reliability & Extensibility
+
+Release Date: 2026-08-27  
+Branch: develop
+
+### Optimizations & Architectural Enhancements
+
+- **Pipeline Lifecycle & Dependency Orchestrator**: Explicit stage lifecycle states (`pending`, `running`, `completed`, `failed`, `skipped`, `interrupted`) with stage input validation and accurate per-stage duration tracking.
+- **Smart Stage Caching & Invalidation**: Isolated caching (`internal/cache`) with SHA-256 content hashing, version keying, and `--no-cache` support.
+- **Configuration & Execution Profiles**: Optional YAML/JSON user configuration loading with support for execution profiles (`full`, `fast`, `passive`) and validation of all runtime options.
+- **Data Integrity & Atomic File Operations**: `workspace.WriteFileAtomic` ensures atomic metadata and result persistence via temporary files, fsync, and atomic rename to prevent corrupted files during interruptions.
+- **Controlled Concurrency & Parallel Execution**: Active crawling (Katana) and Historical URL discovery (GAU) execute concurrently under bounded worker pools with clean context cancellation and error propagation.
+- **Process Resilience & Exponential Retry**: Subprocess executor wrapped with transient error retries and timeout propagation.
+- **Diagnostic Doctor & Health Checks**: Enhanced `reconpipeline doctor` with Go compiler verification (supporting PATH and `/usr/local/go/bin/go`), tool versions, workspace health, and configuration inspection.
+- **Enhanced Logging & ANSI Stripping**: Per-scan log files (`logs/scan-<id>.log`), `--no-color` mode, and ANSI escape code sanitization.
+- **Extended Test Suite**: 61 automated unit and integration tests passing (`61/61 PASS`).
+
+---
+
 ## v2.5.2 — V2.1 History & Smart Reporting
 
 Release Date: 2026-08-27  

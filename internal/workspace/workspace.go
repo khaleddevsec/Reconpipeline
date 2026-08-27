@@ -131,3 +131,48 @@ func IsExecutable(path string) bool {
 	}
 	return info.Mode()&0111 != 0
 }
+
+// WriteFileAtomic writes data to a temporary file in the same directory, flushes it,
+// and atomically renames it to the destination path to prevent partial file corruption.
+func WriteFileAtomic(destPath string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(destPath)
+	if err := os.MkdirAll(dir, 0750); err != nil {
+		return fmt.Errorf("failed to create parent directory %s: %w", dir, err)
+	}
+
+	tmpFile, err := os.CreateTemp(dir, ".tmp-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary file: %w", err)
+	}
+	tmpName := tmpFile.Name()
+	defer func() {
+		_ = os.Remove(tmpName) // Clean up if rename didn't happen
+	}()
+
+	if _, err := tmpFile.Write(data); err != nil {
+		_ = tmpFile.Close()
+		return fmt.Errorf("failed to write to temporary file: %w", err)
+	}
+
+	if err := tmpFile.Sync(); err != nil {
+		_ = tmpFile.Close()
+		return fmt.Errorf("failed to sync temporary file: %w", err)
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("failed to close temporary file: %w", err)
+	}
+
+	_ = os.Chmod(tmpName, perm)
+
+	// Replace existing file atomically
+	if err := os.Rename(tmpName, destPath); err != nil {
+		// Windows fallback if destination file is locked/exists
+		_ = os.Remove(destPath)
+		if retryErr := os.Rename(tmpName, destPath); retryErr != nil {
+			return fmt.Errorf("failed to rename %s to %s: %w", tmpName, destPath, retryErr)
+		}
+	}
+
+	return nil
+}

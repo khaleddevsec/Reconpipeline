@@ -40,10 +40,14 @@ const logo = `
 var flags struct {
 	output   string
 	mode     string
+	profile  string
 	timeout  string
 	threads  int
+	workers  int
 	resume   bool
 	dryRun   bool
+	noCache  bool
+	noColor  bool
 	quiet    bool
 	verbose  bool
 	details  bool
@@ -76,16 +80,20 @@ Options:
     -h, --help
     -v, --version
 
-    --resume
-    --output <dir>
-    --mode <mode>
-    --dry-run
+    --profile <name>   Profile: full, fast, passive (default: full)
+    --mode <mode>      Scan mode: full, active, passive (default: full)
+    --resume           Resume an interrupted scan
+    --output <dir>     Output directory for results
+    --dry-run          Show pipeline plan without executing
+    --no-cache         Bypass stage caching
 
-    --timeout <duration>
-    --threads <number>
+    --timeout <dur>    Scan timeout (e.g. 30m, 1h) (default: 30m)
+    --threads <num>    Concurrency level (default: 10)
+    --workers <num>    Worker concurrency alias
 
-    --quiet
-    --verbose`,
+    --no-color         Disable coloured output
+    --quiet            Minimal output
+    --verbose          Detailed output`,
 		Version:           version.Version,
 		SilenceUsage:      true,
 		SilenceErrors:     true,
@@ -97,10 +105,14 @@ Options:
 	// Flags.
 	root.Flags().StringVarP(&flags.output, "output", "o", "", "Output directory for results")
 	root.Flags().StringVar(&flags.mode, "mode", "full", "Scan mode: full, active, passive")
+	root.Flags().StringVar(&flags.profile, "profile", "full", "Execution profile: full, fast, passive")
 	root.Flags().StringVar(&flags.timeout, "timeout", "30m", "Scan timeout (e.g. 30m, 1h)")
 	root.Flags().IntVar(&flags.threads, "threads", 10, "Concurrency level")
+	root.Flags().IntVar(&flags.workers, "workers", 0, "Worker concurrency alias")
 	root.Flags().BoolVar(&flags.resume, "resume", false, "Resume a previous scan")
 	root.Flags().BoolVar(&flags.dryRun, "dry-run", false, "Show pipeline plan without executing")
+	root.Flags().BoolVar(&flags.noCache, "no-cache", false, "Bypass stage caching")
+	root.Flags().BoolVar(&flags.noColor, "no-color", false, "Disable terminal colours")
 	root.Flags().BoolVarP(&flags.quiet, "quiet", "q", false, "Minimal output")
 	root.Flags().BoolVar(&flags.verbose, "verbose", false, "Detailed output")
 	root.Flags().BoolP("update", "u", false, "Update Reconpipeline")
@@ -127,6 +139,9 @@ Options:
 // persistentPreRun initialises logging for all commands.
 func persistentPreRun(cmd *cobra.Command, args []string) error {
 	cfg := config.NewConfig()
+	if flags.noColor {
+		logging.SetNoColor(true)
+	}
 	level := logging.LevelNormal
 	if flags.quiet {
 		level = logging.LevelQuiet
@@ -156,31 +171,40 @@ func runMain(cmd *cobra.Command, args []string) error {
 	cfg := config.NewConfig()
 	ws := workspace.NewManager(cfg)
 
-	if !flags.quiet {
-		printBanner()
-	}
-
 	target, err := scope.Normalise(args[0])
 	if err != nil {
 		return fmt.Errorf("invalid target: %w", err)
 	}
 
-	// Resolve timeout.
-	timeout, err := time.ParseDuration(flags.timeout)
-	if err != nil {
-		return fmt.Errorf("invalid timeout %q: %w", flags.timeout, err)
+	threads := flags.threads
+	if flags.workers > 0 {
+		threads = flags.workers
 	}
 
 	mode := strings.ToLower(flags.mode)
-	if mode != "full" && mode != "active" && mode != "passive" {
-		return fmt.Errorf("invalid mode %q: must be full, active, or passive", flags.mode)
+	profile := strings.ToLower(flags.profile)
+
+	if err := config.ValidateOptions(threads, flags.timeout, mode, profile); err != nil {
+		return fmt.Errorf("configuration error: %w", err)
+	}
+
+	if profile != "" && profile != "full" && cmd.Flags().Changed("profile") && !cmd.Flags().Changed("mode") {
+		prof := config.GetProfile(profile)
+		mode = prof.Mode
+		if !cmd.Flags().Changed("threads") && flags.workers == 0 {
+			threads = prof.Threads
+		}
 	}
 
 	if flags.quiet {
 		fmt.Printf("Reconpipeline %s\nTarget: %s\n", version.Version, target.Domain)
 	} else {
-		fmt.Printf("Target : %s\n", target.Domain)
-		fmt.Printf("Mode   : %s\n", modeLabel(mode))
+		printBanner()
+		fmt.Printf("Target  : %s\n", target.Domain)
+		if profile != "" && profile != "full" {
+			fmt.Printf("Profile : %s\n", capitalize(profile))
+		}
+		fmt.Printf("Mode    : %s\n", modeLabel(mode))
 		fmt.Println()
 		fmt.Println("────────────────────────────────────────")
 	}
@@ -194,6 +218,9 @@ func runMain(cmd *cobra.Command, args []string) error {
 	if err := ws.Init(); err != nil {
 		return fmt.Errorf("workspace initialisation failed: %w", err)
 	}
+
+	// Resolve timeout.
+	timeout, _ := time.ParseDuration(flags.timeout)
 
 	// First run / dependency check.
 	logging.Info("[01] Preparing dependencies")
@@ -234,9 +261,12 @@ func runMain(cmd *cobra.Command, args []string) error {
 	pipelineOpts := pipeline.Options{
 		OutputRoot: flags.output,
 		Mode:       mode,
-		Threads:    flags.threads,
+		Profile:    profile,
+		Threads:    threads,
 		Resume:     flags.resume,
 		DryRun:     flags.dryRun,
+		NoCache:    flags.noCache,
+		Timeout:    timeout,
 	}
 
 	p := pipeline.New(target, pipelineOpts, ws)
@@ -590,23 +620,43 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	fmt.Println("System")
 	fmt.Printf("  OS            : %s\n", cfg.OS)
 	fmt.Printf("  Architecture  : %s\n", cfg.Arch)
+	goBin := dependencies.FindGo()
+	if goBin != "" {
+		fmt.Printf("  Go Compiler   : %s (OK)\n", goBin)
+	} else {
+		fmt.Printf("  Go Compiler   : NOT FOUND\n")
+	}
+	fmt.Println()
+
+	fmt.Println("Managed Tools")
+	status := depMgr.Status()
+	versions := depMgr.ToolVersions()
+	for _, tool := range config.ToolOrder {
+		label := capitalize(tool)
+		if tool == "httpx" {
+			label = "HTTPX"
+		}
+		vStr := versions[tool]
+		if vStr == "" {
+			vStr = status[tool]
+		}
+		fmt.Printf("  %-14s: %-10s (%s)\n", label, status[tool], vStr)
+	}
 	fmt.Println()
 
 	fmt.Println("Workspace")
 	checkDir(cfg.ConfigDir, "Config")
 	checkDir(cfg.CacheDir, "Cache")
 	checkDir(cfg.LogsDir, "Logs")
+	checkDir(cfg.ToolsDir, "Tools")
+	checkDir(cfg.VersionsDir, "Versions")
 	fmt.Println()
 
-	fmt.Println("Managed Tools")
-	status := depMgr.Status()
-	for _, tool := range config.ToolOrder {
-		label := capitalize(tool)
-		if tool == "httpx" {
-			label = "HTTPX"
-		}
-		fmt.Printf("  %-14s: %s\n", label, status[tool])
-	}
+	fmt.Println("Configuration")
+	fmt.Printf("  Profile       : %s\n", cfg.UserSettings.DefaultProfile)
+	fmt.Printf("  Threads       : %d\n", cfg.UserSettings.DefaultThreads)
+	fmt.Printf("  Timeout       : %s\n", cfg.UserSettings.DefaultTimeout)
+	fmt.Printf("  Cache Enabled : %t\n", cfg.UserSettings.CacheEnabled)
 	fmt.Println()
 
 	allOK := true
