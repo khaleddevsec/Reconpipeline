@@ -85,6 +85,8 @@ func (m *Manager) InitTargetDirs(targetDir string) error {
 		filepath.Join(targetDir, "06-pattern-analysis", "gf"),
 		filepath.Join(targetDir, "06-pattern-analysis", "patterns"),
 		filepath.Join(targetDir, "summary"),
+		filepath.Join(targetDir, "history"),
+		filepath.Join(targetDir, "comparison"),
 	}
 
 	for _, d := range dirs {

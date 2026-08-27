@@ -6,6 +6,27 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## v2.5.2 — V2.1 History & Smart Reporting
+
+Release Date: 2026-08-27  
+Branch: develop
+
+### Features & Reporting Enhancements
+
+- **Scan Identification & Metadata**: Deterministic scan IDs (`scan-YYYYMMDD-HHMMSS`) with structured `scan.json` and `summary.json`.
+- **Scan History Engine**: Persistent scan history under `results/<target>/history/<scan_id>/` with target isolation and snapshot preservation.
+- **Delta Change Detection & Comparison Engine**: Automated comparison between scans detecting new, removed, and changed subdomains, live hosts, URLs, APIs, JS endpoints, and asset metadata (HTTP status codes, titles, servers).
+- **Comparison Output Files**: Output tracking in `results/<target>/comparison/` (`new-subdomains.txt`, `removed-subdomains.txt`, `new-hosts.txt`, `removed-hosts.txt`, `new-urls.txt`, `removed-urls.txt`, `changed-assets.json`, `comparison.json`, `comparison.txt`).
+- **Standalone HTML Dashboard (`report.html`)**: Self-contained, responsive, clean HTML reconnaissance dashboard with KPI cards, stage indicators, security pattern tables, and changes since previous scan.
+- **Structured JSON & Text Reports**: Enhanced `report.json` and `report.txt` with scan metadata, intelligence counts, and delta comparison summaries.
+- **New CLI Commands**:
+  - `reconpipeline history <target>` (`--details` / `-d` supported).
+  - `reconpipeline compare <target>` (`--from <id> --to <id>` supported).
+  - `reconpipeline report <target>` (Locates and displays latest reports).
+- **Extended Test Suite**: 53 automated unit and integration tests covering history, delta detection, HTML report generation, and CLI subcommands.
+
+---
+
 ## v2.5.1 — V2.0 Intelligent Recon Core
 
 Release Date: 2026-08-27  

@@ -64,6 +64,7 @@ type Counters struct {
 
 // RunState is the per-scan state written to run.json.
 type RunState struct {
+	ScanID           string      `json:"scan_id"`
 	Target           string      `json:"target"`
 	NormalisedTarget string      `json:"normalised_target"`
 	Mode             string      `json:"mode"`
@@ -83,6 +84,9 @@ type RunState struct {
 
 // NewRunState creates an initialised RunState.
 func NewRunState(target, normalisedTarget, mode string) *RunState {
+	now := time.Now()
+	scanID := fmt.Sprintf("scan-%s", now.Format("20060102-150405"))
+
 	stages := []StageInfo{
 		{Name: "subdomain-discovery", Status: StatusPending},
 		{Name: "live-host-detection", Status: StatusPending},
@@ -93,13 +97,14 @@ func NewRunState(target, normalisedTarget, mode string) *RunState {
 	}
 
 	return &RunState{
+		ScanID:           scanID,
 		Target:           target,
 		NormalisedTarget: normalisedTarget,
 		Mode:             mode,
 		Version:          version.Version,
 		OS:               runtime.GOOS,
 		Architecture:     runtime.GOARCH,
-		StartTime:        time.Now(),
+		StartTime:        now,
 		Stages:           stages,
 	}
 }

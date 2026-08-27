@@ -38,11 +38,11 @@ func TestGenerate_CreatesFiles(t *testing.T) {
 		Completed: true,
 	}
 
-	if err := reporting.Generate(state, dir); err != nil {
+	if err := reporting.Generate(state, dir, nil); err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	for _, f := range []string{"report.txt", "report.json"} {
+	for _, f := range []string{"report.txt", "report.json", "report.html"} {
 		path := filepath.Join(dir, f)
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			t.Errorf("expected file %q to be created", path)
@@ -62,7 +62,7 @@ func TestGenerate_ReportContentsTarget(t *testing.T) {
 		Stages:           []pipeline.StageInfo{},
 	}
 
-	if err := reporting.Generate(state, dir); err != nil {
+	if err := reporting.Generate(state, dir, nil); err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 

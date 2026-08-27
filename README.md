@@ -11,8 +11,8 @@
 
 Reconpipeline  
 Made by frozeniceee  
-Version: v2.5.1  
-Release: V2.0 — Intelligent Recon Core
+Version: v2.5.2  
+Release: V2.1 — History & Smart Reporting
 
 ---
 
@@ -23,7 +23,8 @@ built for Linux. It coordinates Subfinder, HTTPX, Katana, GAU, and GF to perform
 subdomain discovery, DNS intelligence gathering, live host detection, technology
 fingerprinting, HTTP status categorization, active crawling, historical URL discovery,
 smart URL normalization, deduplication, URL clustering, parameter intelligence,
-endpoint prioritization, and pattern analysis.
+endpoint prioritization, pattern analysis, scan history persistence, delta change
+detection, and standalone HTML/JSON reporting.
 
 The user interacts with one command:
 
@@ -53,11 +54,16 @@ installation, PATH configuration, or per-tool knowledge is required.
 - Interesting Endpoint Detection (high, medium, low interest heuristics)
 - Smart Prioritization (deterministic, explainable priority scoring)
 - GF Pattern Analysis (XSS, SQLi, LFI, SSRF, Open Redirect)
+- Scan History Persistence (`results/<target>/history/<scan_id>/`)
+- Delta Change Detection (comparing current scan against previous scans)
+- Observation of new, removed, and changed assets (status codes, titles, servers)
+- Standalone, responsive HTML Dashboard (`report.html`) with zero external dependencies
+- Machine-readable structured JSON reports (`report.json`)
+- Comprehensive CLI commands (`history`, `compare`, `report`, `doctor`, `update`, `version`)
 - Scan modes: full, active, passive
 - Resume support via `run.json`
 - Graceful SIGINT handling (results preserved on interrupt)
 - Raw data preservation across all stages
-- Structured JSON and TXT reporting
 - Linux amd64 and arm64 support
 
 ---
@@ -123,7 +129,12 @@ installation, PATH configuration, or per-tool knowledge is required.
                      PATTERN ANALYSIS (GF)
                             |
                             v
-                 STRUCTURED RESULTS & SUMMARY
+                     HISTORY & DELTAS
+                            |
+             +--------------+--------------+
+             |              |              |
+             v              v              v
+         HTML DASHBOARD  JSON REPORT   TEXT REPORT
 ```
 
 ---
@@ -203,6 +214,17 @@ reconpipeline example.com --output ./my-results
 # Concurrency and timeout
 reconpipeline example.com --threads 20 --timeout 1h
 
+# View scan history
+reconpipeline history example.com
+reconpipeline history example.com --details
+
+# Compare scans for change detection
+reconpipeline compare example.com
+reconpipeline compare example.com --from scan-20260827-100000 --to scan-20260828-110000
+
+# View latest scan reports
+reconpipeline report example.com
+
 # Diagnostic commands
 reconpipeline doctor
 reconpipeline version
@@ -211,10 +233,24 @@ reconpipeline update
 
 ---
 
-## CLI Options
+## CLI Options & Commands
 
 ```
-Global:
+Usage:
+
+    reconpipeline <target>
+
+Commands:
+
+    history <target>   View historical scans for target
+    compare <target>   Compare recent scans for changes
+    report <target>    Display latest scan report
+    doctor             Check system and dependencies
+    update             Update Reconpipeline
+    version            Show version
+
+Options:
+
     -h, --help              Show help information
     -v, --version           Show current version and update status
         --update            Update Reconpipeline to the latest release
@@ -248,48 +284,21 @@ results/
     │   ├── subdomains.txt
     │   ├── metadata.json
     │   ├── classified/
-    │   │   ├── api.txt
-    │   │   ├── admin.txt
-    │   │   ├── development.txt
-    │   │   ├── staging.txt
-    │   │   ├── auth.txt
-    │   │   ├── cdn.txt
-    │   │   └── static.txt
     │   └── dns/
-    │       ├── a-records.txt
-    │       ├── cnames.txt
-    │       ├── ips.txt
-    │       └── dns-records.json
     │
     ├── 02-live-host-detection/
     │   ├── live-hosts.txt
     │   ├── metadata.json
     │   ├── status/
-    │   │   ├── 2xx.txt
-    │   │   ├── 3xx.txt
-    │   │   ├── 4xx.txt
-    │   │   ├── 5xx.txt
-    │   │   ├── interesting-status.txt
-    │   │   └── status.json
     │   └── technologies/
-    │       ├── nginx.txt
-    │       ├── apache.txt
-    │       ├── wordpress.txt
-    │       ├── nodejs.txt
-    │       ├── php.txt
-    │       ├── cdn.txt
-    │       ├── cloud.txt
-    │       └── technologies.json
     │
     ├── 03-active-crawling/
     │   ├── katana-urls.txt
-    │   └── katana/
-    │       └── urls.txt
+    │   └── katana/urls.txt
     │
     ├── 04-historical-url-discovery/
     │   ├── gau-urls.txt
-    │   └── gau/
-    │       └── urls.txt
+    │   └── gau/urls.txt
     │
     ├── 05-url-processing/
     │   ├── all-urls.txt
@@ -300,34 +309,14 @@ results/
     │   ├── parameterized-urls.txt
     │   ├── interesting-urls.txt
     │   ├── raw/
-    │   │   └── all-urls.txt
     │   ├── normalized/
-    │   │   └── normalized-urls.txt
     │   ├── deduplicated/
-    │   │   └── unique-urls.txt
     │   ├── clusters/
-    │   │   ├── endpoint-clusters.json
-    │   │   └── clustered-patterns.txt
     │   ├── api/
-    │   │   ├── api-urls.txt
-    │   │   └── api-patterns.json
     │   ├── javascript/
-    │   │   ├── javascript-urls.txt
-    │   │   ├── extracted-endpoints.txt
-    │   │   └── javascript-analysis.json
     │   ├── parameters/
-    │   │   ├── parameterized-urls.txt
-    │   │   └── parameter-analysis.json
     │   ├── interesting/
-    │   │   ├── high-interest.txt
-    │   │   ├── medium-interest.txt
-    │   │   ├── low-interest.txt
-    │   │   └── interesting-urls.txt
     │   └── priority/
-    │       ├── high-priority.txt
-    │       ├── medium-priority.txt
-    │       ├── low-priority.txt
-    │       └── priority-scores.json
     │
     ├── 06-pattern-analysis/
     │   ├── xss.txt
@@ -335,23 +324,57 @@ results/
     │   ├── lfi.txt
     │   ├── ssrf.txt
     │   ├── redirect.txt
-    │   ├── other-patterns.txt
     │   ├── gf/
-    │   │   └── (mirrored pattern outputs)
     │   └── patterns/
-    │       └── pattern-summary.json
+    │
+    ├── history/
+    │   └── scan-20260827-183042/
+    │       ├── scan.json
+    │       ├── summary.json
+    │       ├── summary.txt
+    │       ├── report.json
+    │       ├── report.html
+    │       ├── subdomains.txt
+    │       ├── live-hosts.txt
+    │       ├── unique-urls.txt
+    │       └── statistics.json
+    │
+    ├── comparison/
+    │   ├── new-subdomains.txt
+    │   ├── removed-subdomains.txt
+    │   ├── new-hosts.txt
+    │   ├── removed-hosts.txt
+    │   ├── new-urls.txt
+    │   ├── removed-urls.txt
+    │   ├── changed-assets.json
+    │   ├── comparison.json
+    │   └── comparison.txt
     │
     ├── summary/
     │   ├── statistics.json
     │   └── summary.txt
     │
+    ├── report.html
     ├── report.txt
     ├── report.json
     └── run.json
 ```
 
-Raw data is preserved at each stage. Processed datasets exist alongside raw records
-to prevent data loss.
+Raw data is preserved across every stage. Processed datasets and historical records
+exist alongside raw files to prevent data loss.
+
+---
+
+## History & Comparison Workflow
+
+When scanning a target, Reconpipeline automatically:
+
+1. Loads the latest prior scan for the specific target.
+2. Executes the reconnaissance pipeline.
+3. Computes the delta differences across subdomains, live hosts, URLs, and asset metadata.
+4. Generates a standalone `report.html` dashboard, `report.json`, and `report.txt`.
+5. Persists the current scan snapshots into `history/<scan_id>/`.
+6. Saves detailed comparison records into `comparison/`.
 
 ---
 
@@ -379,47 +402,19 @@ downloaded and installed automatically.
 
 ---
 
-## Configuration
-
-Default tool sources are defined in `configs/tools.json`. Custom API keys for subfinder
-can be placed in `~/.config/subfinder/provider-config.yaml`.
-
----
-
-## Development
-
-```bash
-# Clone
-git clone https://github.com/frozeniceee/Reconpipeline.git
-cd Reconpipeline
-
-# Check out development branch
-git checkout develop
-
-# Format code
-make fmt
-
-# Run vet
-make vet
-
-# Run all tests
-make test
-
-# Build binary
-make build
-```
-
----
-
 ## Testing
 
-Run unit and integration tests:
+Run the full unit and integration test suite:
 
 ```bash
 go test -v ./...
 ```
 
 Test coverage includes:
+- Scan ID generation and scan metadata serialization
+- Scan history persistence, listing, and target isolation
+- Delta comparison engine (new, removed, and changed assets)
+- Standalone HTML report dashboard generation
 - Target normalisation and ccTLD root domain parsing
 - Asset classification rules and confidence scoring
 - DNS record resolution and IP gathering
@@ -439,15 +434,15 @@ Reconpipeline follows Semantic Versioning:
 
 - `MAJOR.MINOR.PATCH`
 - PATCH releases: bug fixes, heuristic improvements, compatibility updates.
-- MINOR releases: new pipeline intelligence stages, backwards compatible.
+- MINOR releases: new pipeline intelligence and reporting stages, backwards compatible.
 - MAJOR releases: architectural overhauls, breaking changes.
 
 ---
 
 ## Branching Model
 
-- `main`: Stable production branch. Tagged releases (e.g. `v2.5.0`, `v2.5.1`).
-- `develop`: Active development branch for new intelligence capabilities and features.
+- `main`: Stable production branch. Tagged releases (e.g. `v2.5.0`, `v2.5.1`, `v2.5.2`).
+- `develop`: Active development branch for new capabilities and features.
 
 ---
 

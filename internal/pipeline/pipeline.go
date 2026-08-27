@@ -33,9 +33,9 @@ type Options struct {
 	Mode string
 	// Threads is the concurrency level passed to tools.
 	Threads int
-	// Resume skips completed stages.
+	// Resume indicates whether to resume an interrupted scan.
 	Resume bool
-	// DryRun shows the plan without executing.
+	// DryRun indicates whether to simulate without running tools.
 	DryRun bool
 }
 
@@ -47,15 +47,13 @@ type StageResult struct {
 	Error   error
 }
 
-// Pipeline is the main orchestration engine.
+// Pipeline orchestrates tool execution across all 6 stages.
 type Pipeline struct {
-	target  *scope.Target
-	opts    Options
-	ws      *workspace.Manager
-	state   *RunState
-	runFile string
-
-	// Tool adapters.
+	target    *scope.Target
+	opts      Options
+	ws        *workspace.Manager
+	state     *RunState
+	runFile   string
 	subfinder *subfinder.Tool
 	httpx     *httpx.Tool
 	katana    *katana.Tool
@@ -305,7 +303,7 @@ func (p *Pipeline) Run(ctx context.Context) error {
 		p.target.Domain, p.opts.Mode, p.state.Counters.Subdomains, p.state.Counters.LiveHosts, p.state.Counters.UniqueURLs, p.state.Counters.APIURLs, p.state.Counters.JavaScriptURLs, p.state.Counters.ParamURLs, p.state.Counters.URLClusters, p.state.Counters.HighPriorityURLs)
 	_ = os.WriteFile(filepath.Join(summaryDir, "summary.txt"), []byte(summaryTxt), 0640)
 
-	// Finalise.
+	// Finalise state.
 	for _, w := range warnings {
 		p.state.AddWarning(w)
 	}

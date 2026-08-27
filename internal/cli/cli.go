@@ -13,8 +13,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/frozeniceee/Reconpipeline/internal/comparison"
 	"github.com/frozeniceee/Reconpipeline/internal/config"
 	"github.com/frozeniceee/Reconpipeline/internal/dependencies"
+	"github.com/frozeniceee/Reconpipeline/internal/history"
 	"github.com/frozeniceee/Reconpipeline/internal/logging"
 	"github.com/frozeniceee/Reconpipeline/internal/pipeline"
 	"github.com/frozeniceee/Reconpipeline/internal/reporting"
@@ -36,14 +38,17 @@ const logo = `
 
 // flags holds all CLI flag values.
 var flags struct {
-	output  string
-	mode    string
-	timeout string
-	threads int
-	resume  bool
-	dryRun  bool
-	quiet   bool
-	verbose bool
+	output   string
+	mode     string
+	timeout  string
+	threads  int
+	resume   bool
+	dryRun   bool
+	quiet    bool
+	verbose  bool
+	details  bool
+	fromScan string
+	toScan   string
 }
 
 // New builds and returns the root cobra command.
@@ -59,9 +64,12 @@ Usage:
 
 Commands:
 
-    version       Show version
-    update        Update Reconpipeline
-    doctor        Check system and dependencies
+    history <target>   View historical scans for target
+    compare <target>   Compare recent scans for changes
+    report <target>    Display latest scan report
+    doctor             Check system and dependencies
+    update             Update Reconpipeline
+    version            Show version
 
 Options:
 
@@ -106,6 +114,9 @@ Options:
 	root.AddCommand(versionCmd())
 	root.AddCommand(updateCmd())
 	root.AddCommand(doctorCmd())
+	root.AddCommand(historyCmd())
+	root.AddCommand(compareCmd())
+	root.AddCommand(reportCmd())
 
 	// Override version template.
 	root.SetVersionTemplate(versionString() + "\n")
@@ -209,6 +220,16 @@ func runMain(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("dependency check failed: %w", err)
 	}
 
+	domain, _ := scope.SafeFilename(target.Domain)
+	outRoot := flags.output
+	if outRoot == "" {
+		outRoot = cfg.ResultsDir
+	}
+	targetDir := ws.TargetDir(outRoot, domain)
+
+	// Fetch previous scan before current run
+	prevMeta, prevDir, _ := history.GetLatestScan(targetDir)
+
 	// Run pipeline.
 	pipelineOpts := pipeline.Options{
 		OutputRoot: flags.output,
@@ -233,13 +254,40 @@ func runMain(cmd *cobra.Command, args []string) error {
 		{"pattern-analysis", "[06] Pattern Analysis"},
 	}
 
+	var compResult *comparison.Result
+
 	// Print stage lines dynamically.
 	if !flags.quiet {
-		// Use a channel to capture stage updates.
 		runErr := runPipelineWithProgress(ctx, p, stages)
 
 		elapsed := time.Since(start)
 		state := p.State()
+
+		// Run comparison
+		if state != nil {
+			currMeta := &history.ScanMeta{
+				ScanID:           state.ScanID,
+				Target:           target.Domain,
+				NormalisedTarget: target.Domain,
+				Version:          state.Version,
+				StartTime:        state.StartTime,
+			}
+			compEngine := comparison.NewEngine()
+			compResult, _ = compEngine.CompareScans(prevDir, targetDir, targetDir, prevMeta, currMeta)
+		}
+
+		// Generate reports in target directory
+		if state != nil {
+			_ = reporting.Generate(state, targetDir, compResult)
+		}
+
+		// Save scan into history
+		if state != nil {
+			_, scanDir, _ := history.SaveScan(targetDir, state)
+			if scanDir != "" {
+				_ = reporting.Generate(state, scanDir, compResult)
+			}
+		}
 
 		fmt.Println()
 		fmt.Println("────────────────────────────────────────")
@@ -249,19 +297,16 @@ func runMain(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Unique URLs: %s\n", formatCount(state.Counters.UniqueURLs))
 		fmt.Println()
 
-		domain, _ := scope.SafeFilename(target.Domain)
-		outRoot := flags.output
-		if outRoot == "" {
-			outRoot = cfg.ResultsDir
+		if compResult != nil && compResult.HasPrevious {
+			fmt.Println("Changes Since Previous Scan:")
+			fmt.Printf("  Subdomains : +%d, -%d\n", len(compResult.NewSubdomains), len(compResult.RemovedSubdomains))
+			fmt.Printf("  Live Hosts : +%d, -%d\n", len(compResult.NewHosts), len(compResult.RemovedHosts))
+			fmt.Printf("  Unique URLs: +%d, -%d\n", len(compResult.NewURLs), len(compResult.RemovedURLs))
+			fmt.Println()
 		}
-		targetDir := ws.TargetDir(outRoot, domain)
+
 		fmt.Printf("Results:\n%s\n\n", targetDir)
 		fmt.Printf("Completed in %s\n", formatDuration(elapsed))
-
-		// Generate reports.
-		if state != nil {
-			_ = reporting.Generate(state, targetDir)
-		}
 
 		if runErr != nil && ctx.Err() == nil {
 			fmt.Println()
@@ -277,14 +322,21 @@ func runMain(cmd *cobra.Command, args []string) error {
 			logging.Error("Pipeline error: %v", err)
 		}
 		state := p.State()
-		domain, _ := scope.SafeFilename(target.Domain)
-		outRoot := flags.output
-		if outRoot == "" {
-			outRoot = cfg.ResultsDir
-		}
-		targetDir := ws.TargetDir(outRoot, domain)
 		if state != nil {
-			_ = reporting.Generate(state, targetDir)
+			currMeta := &history.ScanMeta{
+				ScanID:           state.ScanID,
+				Target:           target.Domain,
+				NormalisedTarget: target.Domain,
+				Version:          state.Version,
+				StartTime:        state.StartTime,
+			}
+			compEngine := comparison.NewEngine()
+			compResult, _ = compEngine.CompareScans(prevDir, targetDir, targetDir, prevMeta, currMeta)
+			_ = reporting.Generate(state, targetDir, compResult)
+			_, scanDir, _ := history.SaveScan(targetDir, state)
+			if scanDir != "" {
+				_ = reporting.Generate(state, scanDir, compResult)
+			}
 		}
 		fmt.Printf("Completed.\nResults: %s\n", targetDir)
 	}
@@ -606,4 +658,201 @@ func ResultDir(cfg *config.Config, ws *workspace.Manager, output, domain string)
 		outRoot = cfg.ResultsDir
 	}
 	return filepath.Join(outRoot, domain)
+}
+
+func historyCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "history <target>",
+		Short: "View historical scans for target",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runHistory(args[0], flags.details)
+		},
+	}
+	cmd.Flags().BoolVarP(&flags.details, "details", "d", false, "Show detailed metrics for each scan")
+	return cmd
+}
+
+func compareCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "compare <target>",
+		Short: "Compare recent scans for change detection",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runCompare(args[0], flags.fromScan, flags.toScan)
+		},
+	}
+	cmd.Flags().StringVar(&flags.fromScan, "from", "", "Base scan ID to compare from")
+	cmd.Flags().StringVar(&flags.toScan, "to", "", "Target scan ID to compare to")
+	return cmd
+}
+
+func reportCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "report <target>",
+		Short: "Display or locate latest scan report",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runReport(args[0])
+		},
+	}
+	return cmd
+}
+
+func runHistory(targetRaw string, details bool) error {
+	cfg := config.NewConfig()
+	ws := workspace.NewManager(cfg)
+
+	target, err := scope.Normalise(targetRaw)
+	if err != nil {
+		return fmt.Errorf("invalid target: %w", err)
+	}
+
+	domain, _ := scope.SafeFilename(target.Domain)
+	outRoot := flags.output
+	if outRoot == "" {
+		outRoot = cfg.ResultsDir
+	}
+	targetDir := ws.TargetDir(outRoot, domain)
+
+	scans, err := history.ListScans(targetDir)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Reconpipeline %s\n\n", version.Version)
+	fmt.Printf("Target : %s\n\n", target.Domain)
+	fmt.Println("Scan History")
+	fmt.Println("────────────────────────────────────────")
+
+	if len(scans) == 0 {
+		fmt.Println("No recorded scans found for this target.")
+		return nil
+	}
+
+	if !details {
+		fmt.Printf("%-4s %-20s %-12s %s\n", "#", "Date", "Duration", "Status")
+		for i, s := range scans {
+			dateStr := s.StartTime.Format("2006-01-02 15:04")
+			durStr := s.Duration
+			if durStr == "" {
+				durStr = "-"
+			}
+			fmt.Printf("%02d   %-20s %-12s %s\n", i+1, dateStr, durStr, history.Capitalize(s.Status))
+		}
+	} else {
+		for i, s := range scans {
+			fmt.Printf("[%02d] Scan ID   : %s\n", i+1, s.ScanID)
+			fmt.Printf("     Date      : %s\n", history.FormatTime(s.StartTime))
+			fmt.Printf("     Status    : %s\n", history.Capitalize(s.Status))
+			fmt.Printf("     Duration  : %s\n", s.Duration)
+			fmt.Printf("     Subdomains: %s\n", formatCount(s.Counters.Subdomains))
+			fmt.Printf("     Live Hosts: %s\n", formatCount(s.Counters.LiveHosts))
+			fmt.Printf("     URLs      : %s\n", formatCount(s.Counters.UniqueURLs))
+			fmt.Printf("     APIs      : %s\n", formatCount(s.Counters.APIURLs))
+			fmt.Printf("     JavaScript: %s\n", formatCount(s.Counters.JavaScriptURLs))
+			fmt.Printf("     Parameters: %s\n", formatCount(s.Counters.ParamURLs))
+			fmt.Printf("     GF Matches: %d\n", s.Counters.XSSMatches+s.Counters.SQLiMatches+s.Counters.LFIMatches+s.Counters.SSRFMatches+s.Counters.RedirectMatches)
+			fmt.Println()
+		}
+	}
+
+	return nil
+}
+
+func runCompare(targetRaw, fromID, toID string) error {
+	cfg := config.NewConfig()
+	ws := workspace.NewManager(cfg)
+
+	target, err := scope.Normalise(targetRaw)
+	if err != nil {
+		return fmt.Errorf("invalid target: %w", err)
+	}
+
+	domain, _ := scope.SafeFilename(target.Domain)
+	outRoot := flags.output
+	if outRoot == "" {
+		outRoot = cfg.ResultsDir
+	}
+	targetDir := ws.TargetDir(outRoot, domain)
+
+	var prevMeta, currMeta *history.ScanMeta
+	var prevDir, currDir string
+
+	if fromID != "" && toID != "" {
+		var pErr, cErr error
+		prevMeta, prevDir, pErr = history.GetScan(targetDir, fromID)
+		if pErr != nil {
+			return pErr
+		}
+		currMeta, currDir, cErr = history.GetScan(targetDir, toID)
+		if cErr != nil {
+			return cErr
+		}
+	} else {
+		latest, lDir, err := history.GetLatestScan(targetDir)
+		if err != nil || latest == nil {
+			fmt.Printf("Reconpipeline %s\n\nTarget : %s\n\nNo scans found to compare.\n", version.Version, target.Domain)
+			return nil
+		}
+		currMeta = latest
+		currDir = lDir
+
+		prev, pDir, pErr := history.GetPreviousScan(targetDir, latest.ScanID)
+		if pErr == nil && prev != nil {
+			prevMeta = prev
+			prevDir = pDir
+		}
+	}
+
+	compEngine := comparison.NewEngine()
+	res, err := compEngine.CompareScans(prevDir, currDir, targetDir, prevMeta, currMeta)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Reconpipeline %s\n\n", version.Version)
+	fmt.Printf("Target : %s\n\n", target.Domain)
+	fmt.Print(compEngine.FormatTextSummary(res))
+	return nil
+}
+
+func runReport(targetRaw string) error {
+	cfg := config.NewConfig()
+	ws := workspace.NewManager(cfg)
+
+	target, err := scope.Normalise(targetRaw)
+	if err != nil {
+		return fmt.Errorf("invalid target: %w", err)
+	}
+
+	domain, _ := scope.SafeFilename(target.Domain)
+	outRoot := flags.output
+	if outRoot == "" {
+		outRoot = cfg.ResultsDir
+	}
+	targetDir := ws.TargetDir(outRoot, domain)
+
+	reportTxtPath := filepath.Join(targetDir, "report.txt")
+	reportHTMLPath := filepath.Join(targetDir, "report.html")
+	reportJSONPath := filepath.Join(targetDir, "report.json")
+
+	if !workspace.Exists(reportTxtPath) {
+		fmt.Printf("Reconpipeline %s\n\nTarget : %s\n\nNo report found. Run a scan first:\n\n    reconpipeline %s\n", version.Version, target.Domain, target.Domain)
+		return nil
+	}
+
+	fmt.Printf("Reconpipeline %s\n\n", version.Version)
+	fmt.Printf("Target : %s\n\n", target.Domain)
+	fmt.Println("Latest Scan Reports:")
+	fmt.Println("────────────────────────────────────────")
+	fmt.Printf("HTML Dashboard : %s\n", reportHTMLPath)
+	fmt.Printf("JSON Report    : %s\n", reportJSONPath)
+	fmt.Printf("Text Report    : %s\n\n", reportTxtPath)
+
+	if data, err := os.ReadFile(reportTxtPath); err == nil {
+		fmt.Println(string(data))
+	}
+
+	return nil
 }

@@ -2,11 +2,11 @@
 # ============================================================
 # Reconpipeline Installer
 # Made by frozeniceee
-# Version: v2.5.1
+# Version: v2.5.2
 # ============================================================
 set -euo pipefail
 
-RECONPIPELINE_VERSION="v2.5.1"
+RECONPIPELINE_VERSION="v2.5.2"
 INSTALL_DIR="/usr/local/bin"
 BINARY_NAME="reconpipeline"
 
