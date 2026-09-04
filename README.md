@@ -11,19 +11,19 @@
 
 Reconpipeline  
 Made by frozeniceee  
-Version: v2.5.3  
-Release: V2.2 — Optimization, Reliability & Extensibility
+Version: v2.6.0  
+Release: V2.6 — Smart URL Verification
 
 ---
 
 ## Overview
 
 Reconpipeline is a single-command automated reconnaissance orchestration pipeline
-built for Linux. It coordinates Subfinder, HTTPX, Katana, GAU, and GF to perform
+built for Linux and cross-platform environments. It coordinates Subfinder, HTTPX, Katana, GAU, and GF to perform
 subdomain discovery, DNS intelligence gathering, live host detection, technology
 fingerprinting, HTTP status categorization, active crawling, historical URL discovery,
 smart URL normalization, deduplication, URL clustering, parameter intelligence,
-endpoint prioritization, pattern analysis, scan history persistence, delta change
+endpoint prioritization, smart URL selection and live verification (HTTPX #2), pattern analysis, scan history persistence, delta change
 detection, and standalone HTML/JSON reporting.
 
 The user interacts with one command:
@@ -41,7 +41,7 @@ installation, PATH configuration, or per-tool knowledge is required.
 
 - Single command execution: `reconpipeline <target>`
 - Automatic internal tool management (Subfinder, HTTPX, Katana, GAU, GF)
-- Six-stage reconnaissance pipeline with modular lifecycle states
+- Seven-stage reconnaissance pipeline with modular lifecycle states
 - Profiles: `full` (default), `fast` (reduced crawl depth/timeout), `passive` (passive-only)
 - Smart Stage Caching & Invalidation (separate from history)
 - Atomic File Operations (`.tmp` write + sync + rename) to protect data integrity
@@ -59,7 +59,8 @@ installation, PATH configuration, or per-tool knowledge is required.
 - Parameter Intelligence (categorization: identifier, url, file_path, redirect, search, pagination, auth_token)
 - Interesting Endpoint Detection (high, medium, low interest heuristics)
 - Smart Prioritization (deterministic, explainable priority scoring)
-- GF Pattern Analysis (XSS, SQLi, LFI, SSRF, Open Redirect)
+- Smart URL Selection & Verification (HTTPX #2 validating responsiveness and collecting metadata)
+- GF Pattern Analysis (XSS, SQLi, LFI, SSRF, Open Redirect on verified URLs)
 - Scan History Persistence (`results/<target>/history/<scan_id>/`)
 - Delta Change Detection (comparing current scan against previous scans)
 - Standalone, responsive HTML Dashboard (`report.html`) with zero external dependencies
@@ -85,7 +86,7 @@ installation, PATH configuration, or per-tool knowledge is required.
                    ASSET CLASSIFICATION
                             |
                             v
-                   LIVE HOST DETECTION (HTTPX)
+                   LIVE HOST DETECTION (HTTPX #1)
                             |
                  +----------+----------+
                  |                     |
@@ -128,6 +129,12 @@ installation, PATH configuration, or per-tool knowledge is required.
                      PRIORITIZATION
                             |
                             v
+                  SMART URL SELECTION
+                            |
+                            v
+                  URL VERIFICATION (HTTPX #2)
+                            |
+                            v
                      PATTERN ANALYSIS (GF)
                             |
                             v
@@ -146,11 +153,12 @@ installation, PATH configuration, or per-tool knowledge is required.
 | Stage | Name                       | Engine / Tool  | Primary Outputs |
 |-------|----------------------------|----------------|-----------------|
 | 01    | Subdomain Discovery        | Subfinder, DNS | `subdomains.txt`, `dns/`, `classified/`, `metadata.json` |
-| 02    | Live Host Detection        | HTTPX, Tech    | `live-hosts.txt`, `status/`, `technologies/`, `metadata.json` |
+| 02    | Live Host Detection        | HTTPX #1, Tech | `live-hosts.txt`, `status/`, `technologies/`, `metadata.json` |
 | 03    | Active Crawling            | Katana         | `katana-urls.txt`, `katana/urls.txt` |
 | 04    | Historical URL Discovery   | GAU            | `gau-urls.txt`, `gau/urls.txt` |
 | 05    | URL Processing             | Smart URL Core | `raw/`, `normalized/`, `deduplicated/`, `api/`, `javascript/`, `parameters/`, `clusters/`, `interesting/`, `priority/` |
-| 06    | Pattern Analysis           | GF             | `xss.txt`, `sqli.txt`, `lfi.txt`, `ssrf.txt`, `redirect.txt`, `patterns/` |
+| 06    | URL Verification           | HTTPX #2       | `input-urls.txt`, `verified-urls.txt`, `httpx.jsonl`, `metadata.json` |
+| 07    | Pattern Analysis           | GF             | `xss.txt`, `sqli.txt`, `lfi.txt`, `ssrf.txt`, `redirect.txt`, `patterns/` |
 
 ---
 

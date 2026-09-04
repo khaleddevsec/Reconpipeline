@@ -3,11 +3,13 @@
 package pipeline
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -288,13 +290,74 @@ func (p *Pipeline) Run(ctx context.Context) error {
 		p.state.Counters.LowPriorityURLs = urlResults.LowPriority
 	}
 
-	// ─── Stage 06: Pattern Analysis (GF) ─────────────────────────────────────
-	patternDir := stageDir(6, "pattern-analysis")
-	summaryPatternFile := filepath.Join(patternDir, "patterns", "pattern-summary.json")
+	// ─── Stage 06: URL Verification (HTTPX #2) ──────────────────────────────
+	stage6Dir := stageDir(6, "url-verification")
+	inputURLsFile := filepath.Join(stage6Dir, "input-urls.txt")
+	verifiedURLsFile := filepath.Join(stage6Dir, "verified-urls.txt")
+
+	verifySkip := p.shouldSkip("url-verification", verifiedURLsFile)
+
+	if p.opts.Mode == "passive" || p.opts.Profile == "passive" {
+		p.state.SetStageStatus("url-verification", StatusSkipped)
+		p.saveState()
+		verifySkip = true
+	}
+
+	if !verifySkip {
+		err = p.runStage(ctx, "url-verification", stage6Dir, func() error {
+			// Read unique URLs from Stage 5
+			uniqueURLs := readLines(uniqueURLsFile)
+
+			// Determine max verification URLs
+			maxVerify := 5000
+			if p.opts.Profile != "" {
+				prof := config.GetProfile(p.opts.Profile)
+				if prof.MaxVerifyURLs > 0 {
+					maxVerify = prof.MaxVerifyURLs
+				}
+			}
+
+			// Smart URL Selection: conservative filtering & prioritization
+			selected := urlprocessor.SelectForVerification(uniqueURLs, p.target, maxVerify)
+
+			// Write input-urls.txt
+			if err := writeLines(inputURLsFile, selected); err != nil {
+				return fmt.Errorf("failed to write input-urls.txt: %w", err)
+			}
+
+			// Execute HTTPX #2
+			if len(selected) > 0 {
+				if vErr := p.httpx.VerifyURLs(ctx, inputURLsFile, stage6Dir, p.opts.Threads); vErr != nil {
+					return vErr
+				}
+			} else {
+				_ = os.WriteFile(verifiedURLsFile, []byte{}, 0640)
+				_ = os.WriteFile(filepath.Join(stage6Dir, "httpx.jsonl"), []byte{}, 0640)
+				_ = os.WriteFile(filepath.Join(stage6Dir, "metadata.json"), []byte("[]"), 0640)
+			}
+			return nil
+		})
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("URL Verification encountered an error: %v", err))
+		}
+	}
+	p.state.Counters.SelectedURLs = urlprocessor.CountLines(inputURLsFile)
+	p.state.Counters.VerifiedURLs = urlprocessor.CountLines(verifiedURLsFile)
+
+	// ─── Stage 07: Pattern Analysis (GF) ─────────────────────────────────────
+	stage7Dir := stageDir(7, "pattern-analysis")
+	legacyStage6Dir := filepath.Join(targetDir, "06-pattern-analysis")
+	summaryPatternFile := filepath.Join(stage7Dir, "patterns", "pattern-summary.json")
+
+	// Determine GF input file: use verified URLs if available, fallback to unique URLs
+	gfInputFile := verifiedURLsFile
+	if urlprocessor.CountLines(verifiedURLsFile) == 0 {
+		gfInputFile = uniqueURLsFile
+	}
 
 	if !p.shouldSkip("pattern-analysis", summaryPatternFile) {
-		err = p.runStage(ctx, "pattern-analysis", patternDir, func() error {
-			counts, runErr := p.gf.RunAll(ctx, uniqueURLsFile, patternDir)
+		err = p.runStage(ctx, "pattern-analysis", stage7Dir, func() error {
+			counts, runErr := p.gf.RunAll(ctx, gfInputFile, stage7Dir)
 			if counts != nil {
 				p.state.Counters.XSSMatches = counts["xss"]
 				p.state.Counters.SQLiMatches = counts["sqli"]
@@ -305,11 +368,18 @@ func (p *Pipeline) Run(ctx context.Context) error {
 				summaryData, _ := json.MarshalIndent(counts, "", "  ")
 				_ = os.WriteFile(summaryPatternFile, summaryData, 0640)
 
+				// Backward compatibility copy to legacy 06-pattern-analysis
+				_ = os.MkdirAll(filepath.Join(legacyStage6Dir, "patterns"), 0750)
+				_ = os.MkdirAll(filepath.Join(legacyStage6Dir, "gf"), 0750)
+				_ = os.WriteFile(filepath.Join(legacyStage6Dir, "patterns", "pattern-summary.json"), summaryData, 0640)
+
 				for pName := range counts {
-					src := filepath.Join(patternDir, pName+".txt")
-					dst := filepath.Join(patternDir, "gf", pName+".txt")
+					src := filepath.Join(stage7Dir, pName+".txt")
+					dst := filepath.Join(stage7Dir, "gf", pName+".txt")
 					if d, rErr := os.ReadFile(src); rErr == nil {
 						_ = os.WriteFile(dst, d, 0640)
+						_ = os.WriteFile(filepath.Join(legacyStage6Dir, pName+".txt"), d, 0640)
+						_ = os.WriteFile(filepath.Join(legacyStage6Dir, "gf", pName+".txt"), d, 0640)
 					}
 				}
 			}
@@ -326,8 +396,8 @@ func (p *Pipeline) Run(ctx context.Context) error {
 	statsJSON, _ := json.MarshalIndent(p.state.Counters, "", "  ")
 	_ = os.WriteFile(filepath.Join(summaryDir, "statistics.json"), statsJSON, 0640)
 
-	summaryTxt := fmt.Sprintf("Target: %s\nMode: %s\nProfile: %s\nSubdomains: %d\nLive Hosts: %d\nUnique URLs: %d\nAPI URLs: %d\nJS URLs: %d\nParameters: %d\nClusters: %d\nHigh Priority: %d\n",
-		p.target.Domain, p.opts.Mode, p.opts.Profile, p.state.Counters.Subdomains, p.state.Counters.LiveHosts, p.state.Counters.UniqueURLs, p.state.Counters.APIURLs, p.state.Counters.JavaScriptURLs, p.state.Counters.ParamURLs, p.state.Counters.URLClusters, p.state.Counters.HighPriorityURLs)
+	summaryTxt := fmt.Sprintf("Target: %s\nMode: %s\nProfile: %s\nSubdomains: %d\nLive Hosts: %d\nUnique URLs: %d\nSelected URLs: %d\nVerified URLs: %d\nAPI URLs: %d\nJS URLs: %d\nParameters: %d\nClusters: %d\nHigh Priority: %d\n",
+		p.target.Domain, p.opts.Mode, p.opts.Profile, p.state.Counters.Subdomains, p.state.Counters.LiveHosts, p.state.Counters.UniqueURLs, p.state.Counters.SelectedURLs, p.state.Counters.VerifiedURLs, p.state.Counters.APIURLs, p.state.Counters.JavaScriptURLs, p.state.Counters.ParamURLs, p.state.Counters.URLClusters, p.state.Counters.HighPriorityURLs)
 	_ = os.WriteFile(filepath.Join(summaryDir, "summary.txt"), []byte(summaryTxt), 0640)
 
 	// Finalise state.
@@ -338,6 +408,37 @@ func (p *Pipeline) Run(ctx context.Context) error {
 	p.saveState()
 
 	return nil
+}
+
+func readLines(path string) []string {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	var lines []string
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 512*1024), 512*1024)
+	for scanner.Scan() {
+		t := strings.TrimSpace(scanner.Text())
+		if t != "" {
+			lines = append(lines, t)
+		}
+	}
+	return lines
+}
+
+func writeLines(path string, lines []string) error {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0640)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	w := bufio.NewWriter(f)
+	for _, l := range lines {
+		fmt.Fprintln(w, l)
+	}
+	return w.Flush()
 }
 
 // runStage executes a stage function, tracking state and caching.

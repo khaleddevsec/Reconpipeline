@@ -189,9 +189,9 @@ tr:hover td { background: rgba(255, 255, 255, 0.02); }
       <div class="kpi-sub">Tech Groups: ` + formatCount(r.Counters.TechnologiesDetected) + `</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-label">Unique URLs</div>
-      <div class="kpi-value">` + formatCount(r.Counters.UniqueURLs) + `</div>
-      <div class="kpi-sub">Total Raw: ` + formatCount(r.Counters.TotalURLs) + `</div>
+      <div class="kpi-label">Verified URLs</div>
+      <div class="kpi-value">` + formatCount(r.Counters.VerifiedURLs) + `</div>
+      <div class="kpi-sub">Unique: ` + formatCount(r.Counters.UniqueURLs) + ` | Selected: ` + formatCount(r.Counters.SelectedURLs) + `</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">API Endpoints</div>

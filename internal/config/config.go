@@ -96,6 +96,8 @@ type ProfileConfig struct {
 	CrawlDepth       int           `json:"crawl_depth"`
 	EnableHistorical bool          `json:"enable_historical"`
 	EnablePatterns   bool          `json:"enable_patterns"`
+	VerifyURLs       bool          `json:"verify_urls"`
+	MaxVerifyURLs    int           `json:"max_verify_urls"`
 }
 
 // DefaultProfiles holds the built-in profile definitions.
@@ -108,6 +110,8 @@ var DefaultProfiles = map[string]ProfileConfig{
 		CrawlDepth:       3,
 		EnableHistorical: true,
 		EnablePatterns:   true,
+		VerifyURLs:       true,
+		MaxVerifyURLs:    5000,
 	},
 	"fast": {
 		Name:             "fast",
@@ -117,6 +121,8 @@ var DefaultProfiles = map[string]ProfileConfig{
 		CrawlDepth:       1,
 		EnableHistorical: true,
 		EnablePatterns:   true,
+		VerifyURLs:       true,
+		MaxVerifyURLs:    2500,
 	},
 	"passive": {
 		Name:             "passive",
@@ -126,6 +132,8 @@ var DefaultProfiles = map[string]ProfileConfig{
 		CrawlDepth:       0,
 		EnableHistorical: true,
 		EnablePatterns:   true,
+		VerifyURLs:       false,
+		MaxVerifyURLs:    0,
 	},
 }
 
@@ -138,6 +146,8 @@ type UserSettings struct {
 	LogLevel         string `json:"log_level"`
 	CacheEnabled     bool   `json:"cache_enabled"`
 	HistoryRetention int    `json:"history_retention"`
+	VerifyURLs       bool   `json:"verify_urls"`
+	MaxVerifyURLs    int    `json:"max_verify_urls"`
 }
 
 // Config holds the runtime configuration.
@@ -190,6 +200,8 @@ func NewConfig() *Config {
 			LogLevel:         "info",
 			CacheEnabled:     true,
 			HistoryRetention: 0,
+			VerifyURLs:       true,
+			MaxVerifyURLs:    5000,
 		},
 		Arch: normaliseArch(runtime.GOARCH),
 		OS:   runtime.GOOS,
@@ -252,6 +264,12 @@ func parseSimpleYAML(content string, s *UserSettings) {
 			s.LogLevel = val
 		case "cache_enabled", "cache":
 			s.CacheEnabled = strings.ToLower(val) == "true" || val == "1" || strings.ToLower(val) == "yes"
+		case "verify_urls", "url_verification", "verify":
+			s.VerifyURLs = strings.ToLower(val) == "true" || val == "1" || strings.ToLower(val) == "yes"
+		case "max_verify_urls", "max_urls":
+			if n, err := strconv.Atoi(val); err == nil && n >= 0 {
+				s.MaxVerifyURLs = n
+			}
 		case "history_retention", "retention":
 			if n, err := strconv.Atoi(val); err == nil && n >= 0 {
 				s.HistoryRetention = n

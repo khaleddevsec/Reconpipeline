@@ -11,7 +11,18 @@ import (
 	"strings"
 
 	"github.com/frozeniceee/Reconpipeline/internal/intelligence/urlengine"
+	"github.com/frozeniceee/Reconpipeline/internal/scope"
 )
+
+// SelectForVerification wraps urlengine.SelectForVerification.
+func SelectForVerification(uniqueURLs []string, target *scope.Target, maxURLs int) []string {
+	return urlengine.SelectForVerification(uniqueURLs, target, maxURLs)
+}
+
+// IsStaticAsset wraps urlengine.IsStaticAsset.
+func IsStaticAsset(raw string) bool {
+	return urlengine.IsStaticAsset(raw)
+}
 
 // Results holds the counts from URL processing.
 type Results struct {

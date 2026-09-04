@@ -105,6 +105,8 @@ func writeTXT(r *Report, path string, comp *comparison.Result) error {
 	sb.WriteString(fmt.Sprintf("Live Hosts   : %s\n", formatCount(r.Counters.LiveHosts)))
 	sb.WriteString(fmt.Sprintf("Technologies : %s\n", formatCount(r.Counters.TechnologiesDetected)))
 	sb.WriteString(fmt.Sprintf("Unique URLs  : %s\n", formatCount(r.Counters.UniqueURLs)))
+	sb.WriteString(fmt.Sprintf("Selected URLs: %s\n", formatCount(r.Counters.SelectedURLs)))
+	sb.WriteString(fmt.Sprintf("Verified URLs: %s\n", formatCount(r.Counters.VerifiedURLs)))
 	sb.WriteString("\n")
 
 	sb.WriteString("URL Intelligence & Clustering\n")

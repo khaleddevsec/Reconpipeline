@@ -58,6 +58,10 @@ type Counters struct {
 	MediumPriorityURLs   int `json:"medium_priority_urls,omitempty"`
 	LowPriorityURLs      int `json:"low_priority_urls,omitempty"`
 
+	// V2.6 Smart URL Verification Metrics
+	SelectedURLs int `json:"selected_urls,omitempty"`
+	VerifiedURLs int `json:"verified_urls,omitempty"`
+
 	// Pattern match counts.
 	XSSMatches      int `json:"xss_matches"`
 	SQLiMatches     int `json:"sqli_matches"`
@@ -98,6 +102,7 @@ func NewRunState(target, normalisedTarget, mode string) *RunState {
 		{Name: "active-crawling", Status: StatusPending},
 		{Name: "historical-url-discovery", Status: StatusPending},
 		{Name: "url-processing", Status: StatusPending},
+		{Name: "url-verification", Status: StatusPending},
 		{Name: "pattern-analysis", Status: StatusPending},
 	}
 

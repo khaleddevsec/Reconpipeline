@@ -281,7 +281,8 @@ func runMain(cmd *cobra.Command, args []string) error {
 		{"active-crawling", "[03] Active Crawling"},
 		{"historical-url-discovery", "[04] Historical URL Discovery"},
 		{"url-processing", "[05] URL Processing"},
-		{"pattern-analysis", "[06] Pattern Analysis"},
+		{"url-verification", "[06] URL Verification"},
+		{"pattern-analysis", "[07] Pattern Analysis"},
 	}
 
 	var compResult *comparison.Result
@@ -322,9 +323,12 @@ func runMain(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 		fmt.Println("────────────────────────────────────────")
 		fmt.Println()
-		fmt.Printf("Subdomains : %s\n", formatCount(state.Counters.Subdomains))
-		fmt.Printf("Live Hosts : %s\n", formatCount(state.Counters.LiveHosts))
-		fmt.Printf("Unique URLs: %s\n", formatCount(state.Counters.UniqueURLs))
+		fmt.Printf("Subdomains   : %s\n", formatCount(state.Counters.Subdomains))
+		fmt.Printf("Live Hosts   : %s\n", formatCount(state.Counters.LiveHosts))
+		fmt.Printf("Unique URLs  : %s\n", formatCount(state.Counters.UniqueURLs))
+		if state.Counters.VerifiedURLs > 0 || state.StageCompleted("url-verification") {
+			fmt.Printf("Verified URLs: %s\n", formatCount(state.Counters.VerifiedURLs))
+		}
 		fmt.Println()
 
 		if compResult != nil && compResult.HasPrevious {
@@ -486,7 +490,8 @@ func showDryRun(target *scope.Target, mode, output string, ws *workspace.Manager
 	fmt.Println("[03] Active Crawling")
 	fmt.Println("[04] Historical URL Discovery")
 	fmt.Println("[05] URL Processing")
-	fmt.Println("[06] Pattern Analysis")
+	fmt.Println("[06] URL Verification")
+	fmt.Println("[07] Pattern Analysis")
 	fmt.Println()
 
 	fmt.Println("Dependencies:")
@@ -799,6 +804,9 @@ func runHistory(targetRaw string, details bool) error {
 			fmt.Printf("     Subdomains: %s\n", formatCount(s.Counters.Subdomains))
 			fmt.Printf("     Live Hosts: %s\n", formatCount(s.Counters.LiveHosts))
 			fmt.Printf("     URLs      : %s\n", formatCount(s.Counters.UniqueURLs))
+			if s.Counters.VerifiedURLs > 0 {
+				fmt.Printf("     Verified  : %s\n", formatCount(s.Counters.VerifiedURLs))
+			}
 			fmt.Printf("     APIs      : %s\n", formatCount(s.Counters.APIURLs))
 			fmt.Printf("     JavaScript: %s\n", formatCount(s.Counters.JavaScriptURLs))
 			fmt.Printf("     Parameters: %s\n", formatCount(s.Counters.ParamURLs))

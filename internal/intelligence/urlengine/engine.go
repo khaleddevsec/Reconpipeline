@@ -14,6 +14,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/frozeniceee/Reconpipeline/internal/scope"
 )
 
 // PriorityLevel defines the scored priority of an endpoint.
@@ -524,6 +526,128 @@ func ClassifyInterest(urls []string) (high []string, med []string, low []string)
 	return high, med, low
 }
 
+// IsStaticAsset returns true if the URL points to a low-value static asset (image, font, css, media, archive).
+func IsStaticAsset(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	// If query parameters exist, don't blindly treat as purely static
+	if u.RawQuery != "" {
+		return false
+	}
+	path := strings.ToLower(u.Path)
+	ext := filepath.Ext(path)
+	if ext == "" {
+		return false
+	}
+	staticExts := map[string]struct{}{
+		".png": {}, ".jpg": {}, ".jpeg": {}, ".gif": {}, ".ico": {}, ".svg": {}, ".bmp": {}, ".webp": {}, ".tiff": {}, ".tif": {},
+		".css": {}, ".less": {}, ".scss": {},
+		".woff": {}, ".woff2": {}, ".ttf": {}, ".eot": {}, ".otf": {},
+		".mp4": {}, ".mp3": {}, ".wav": {}, ".ogg": {}, ".avi": {}, ".mov": {}, ".wmv": {}, ".flv": {}, ".m4a": {}, ".m4v": {},
+		".pdf": {}, ".zip": {}, ".tar": {}, ".gz": {}, ".rar": {}, ".7z": {}, ".iso": {}, ".exe": {}, ".bin": {},
+	}
+	_, isStatic := staticExts[ext]
+	return isStatic
+}
+
+// SelectForVerification conservatively filters and prioritizes unique URLs for HTTPX #2 verification.
+// It strictly validates target scope, filters out purely static resource noise, prioritizes high and medium
+// interest security endpoints (APIs, parameters, login/admin, JSON, GraphQL, Swagger), and bounds output by maxURLs.
+func SelectForVerification(uniqueURLs []string, target *scope.Target, maxURLs int) []string {
+	var highList []string
+	var medList []string
+	var lowList []string
+
+	for _, raw := range uniqueURLs {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		if target != nil && !scope.InScope(raw, target) {
+			continue
+		}
+		if IsStaticAsset(raw) {
+			continue
+		}
+
+		lower := strings.ToLower(raw)
+		score := 0
+
+		// 1. High Interest keywords
+		if containsAny(lower, "/admin", "/login", "/signin", "/signup", "/auth", "/dashboard", "/upload", "/backup", "/.git", "/.env", "/config", "/secret", "/private", "/internal", "/token", "password", "passwd", "credential", "apikey", "api_key", "/graphql", "/swagger", "/openapi", "/api-docs") {
+			score += 4
+		}
+
+		// 2. API keywords & JSON
+		if containsAny(lower, "/api/", "/v1/", "/v2/", "/v3/", "/v4/", "/rest/", "/rpc/", "/json", ".json", "/gateway/", "/service/", "/endpoint") {
+			score += 3
+		}
+
+		// 3. Parameters presence
+		if strings.Contains(raw, "?") {
+			score += 2
+			if containsAny(lower, "redirect=", "url=", "dest=", "file=", "path=", "template=", "next=", "token=", "key=", "auth=", "secret=", "graphql=", "query=", "id=", "user=") {
+				score += 3
+			}
+		}
+
+		switch {
+		case score >= 4:
+			highList = append(highList, raw)
+		case score >= 2:
+			medList = append(medList, raw)
+		default:
+			// Normal HTML/application routes
+			lowList = append(lowList, raw)
+		}
+	}
+
+	sort.Strings(highList)
+	sort.Strings(medList)
+	sort.Strings(lowList)
+
+	var selected []string
+	if maxURLs <= 0 {
+		selected = append(selected, highList...)
+		selected = append(selected, medList...)
+		selected = append(selected, lowList...)
+		return deduplicateSlice(selected)
+	}
+
+	// Bounded selection prioritizing High > Med > Low
+	var bounded []string
+	bounded = append(bounded, highList...)
+	if len(bounded) < maxURLs {
+		remaining := maxURLs - len(bounded)
+		if len(medList) <= remaining {
+			bounded = append(bounded, medList...)
+		} else {
+			bounded = append(bounded, medList[:remaining]...)
+		}
+	}
+	if len(bounded) < maxURLs {
+		remaining := maxURLs - len(bounded)
+		if len(lowList) <= remaining {
+			bounded = append(bounded, lowList...)
+		} else {
+			bounded = append(bounded, lowList[:remaining]...)
+		}
+	}
+
+	selected = deduplicateSlice(bounded)
+	if len(selected) > maxURLs {
+		selected = selected[:maxURLs]
+	}
+	return selected
+}
+
+// SelectForVerification method on Engine.
+func (e *Engine) SelectForVerification(uniqueURLs []string, target *scope.Target, maxURLs int) []string {
+	return SelectForVerification(uniqueURLs, target, maxURLs)
+}
+
 // PrioritizeURLs calculates a deterministic priority score and reasons for each URL.
 func PrioritizeURLs(urls []string) (assessments []URLPriority, high []string, med []string, low []string) {
 	for _, raw := range urls {
@@ -532,13 +656,13 @@ func PrioritizeURLs(urls []string) (assessments []URLPriority, high []string, me
 		lower := strings.ToLower(raw)
 
 		// 1. High Interest keywords
-		if containsAny(lower, "/admin", "/login", "/signin", "/auth", "/dashboard", "/upload", "/backup", "/.git", "/.env", "/config", "/secret", "/graphql", "/swagger", "/openapi") {
+		if containsAny(lower, "/admin", "/login", "/signin", "/signup", "/auth", "/dashboard", "/upload", "/backup", "/.git", "/.env", "/config", "/secret", "/private", "/internal", "/token", "password", "passwd", "credential", "apikey", "api_key", "/graphql", "/swagger", "/openapi", "/api-docs") {
 			score += 4
 			reasons = append(reasons, "matches high-interest security keyword")
 		}
 
 		// 2. API keywords
-		if containsAny(lower, "/api/", "/v1/", "/v2/", "/v3/", "/rest/", "/rpc") {
+		if containsAny(lower, "/api/", "/v1/", "/v2/", "/v3/", "/v4/", "/rest/", "/rpc/", "/json", ".json", "/gateway/", "/service/", "/endpoint") {
 			score += 3
 			reasons = append(reasons, "API endpoint structure")
 		}

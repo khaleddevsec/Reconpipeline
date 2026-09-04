@@ -4,6 +4,22 @@ All notable changes to this project are documented in this file.
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## v2.6.0 — Smart URL Verification
+
+Release Date: 2026-09-05  
+Branch: develop
+
+### Features & URL Verification Enhancements
+
+- **Second HTTPX Stage (`06-url-verification`)**: Integrated an intelligent endpoint verification and enrichment stage between Go URL Processing and GF Pattern Analysis.
+- **Smart URL Selection & Prioritization**: Conservative, deterministic candidate selection prioritizing high-security endpoints (APIs, parameterized routes, GraphQL, Swagger/OpenAPI, JSON, auth/admin) and medium-priority application endpoints while filtering out static resource noise (images, fonts, CSS, media).
+- **Scope-Constrained Endpoint Probing**: Strict target domain scope validation preventing out-of-scope probes.
+- **URL Metadata & Response Enrichment**: Captures HTTP status codes, titles, servers, content types, content lengths, locations, and technologies into structured `metadata.json`, `verified-urls.txt`, and `httpx.jsonl`.
+- **GF Integration Pipeline Optimization**: GF pattern analysis consumes clean, verified, responsive URLs (`verified-urls.txt`) with automatic graceful fallback to unique URLs if verification is skipped.
+- **Configurable Concurrency & Thresholds**: Supports `verify_urls` and `max_verify_urls` configuration in user settings and execution profiles (`full`, `fast`, `passive`).
+- **Resumption & Graceful Interruption**: Full state preservation (`run.json`), atomic writing, and interruption safety for Stage 06.
+- **Reporting & Dashboard Extensions**: Displays verified URLs in CLI outputs, terminal summary metrics, text reports (`report.txt`), JSON reports (`report.json`), and the standalone HTML dashboard (`report.html`).
+
 ---
 
 ## v2.5.3 — V2.2 Optimization, Reliability & Extensibility

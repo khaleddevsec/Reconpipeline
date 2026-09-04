@@ -45,6 +45,18 @@ type HostMeta struct {
 	Location    string `json:"location"`
 }
 
+// URLMeta holds metadata collected for a verified URL endpoint.
+type URLMeta struct {
+	URL           string   `json:"url"`
+	StatusCode    int      `json:"status_code"`
+	Title         string   `json:"title"`
+	Server        string   `json:"server"`
+	ContentType   string   `json:"content_type"`
+	ContentLength int      `json:"content_length"`
+	Location      string   `json:"location,omitempty"`
+	Technologies  []string `json:"technologies,omitempty"`
+}
+
 // Run executes httpx against the subdomains file and writes:
 //   - live-hosts.txt: one URL per line
 //   - metadata.json: array of HostMeta
@@ -154,9 +166,142 @@ func (t *Tool) parseOutput(jsonlFile, liveHostsFile, metaFile string) error {
 	return nil
 }
 
+// VerifyURLs executes httpx against inputURLsFile to verify responsiveness and enrich endpoint metadata.
+// It writes:
+//   - verified-urls.txt: live, responsive endpoints
+//   - httpx.jsonl: raw JSONL stream from HTTPX
+//   - metadata.json: array of URLMeta
+func (t *Tool) VerifyURLs(ctx context.Context, inputURLsFile string, outDir string, threads int) error {
+	if !t.Available() {
+		return fmt.Errorf("httpx binary not found at %q", t.binPath)
+	}
+
+	jsonOutFile := filepath.Join(outDir, "httpx.jsonl")
+	verifiedURLsFile := filepath.Join(outDir, "verified-urls.txt")
+	metaFile := filepath.Join(outDir, "metadata.json")
+
+	// If inputURLsFile is empty or missing, write empty outputs
+	if countLines(inputURLsFile) == 0 {
+		_ = os.WriteFile(verifiedURLsFile, []byte{}, 0640)
+		_ = os.WriteFile(jsonOutFile, []byte{}, 0640)
+		_ = os.WriteFile(metaFile, []byte("[]"), 0640)
+		return nil
+	}
+
+	args := []string{
+		"-l", inputURLsFile,
+		"-o", jsonOutFile,
+		"-silent",
+		"-json",
+		"-status-code",
+		"-title",
+		"-server",
+		"-content-type",
+		"-content-length",
+		"-location",
+		"-tech-detect",
+		"-threads", fmt.Sprintf("%d", threads),
+		"-no-color",
+	}
+
+	result := executor.Run(ctx, t.binPath, args, executor.Options{})
+	if result.Error != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		// httpx may exit non-zero with no responsive endpoints — only fail on hard execution error.
+		if result.ExitCode == -1 {
+			return fmt.Errorf("httpx verification failed to execute: %w", result.Error)
+		}
+	}
+
+	return t.parseVerificationOutput(jsonOutFile, verifiedURLsFile, metaFile)
+}
+
+// parseVerificationOutput reads httpx verification JSONL output and writes verified-urls.txt and metadata.json.
+func (t *Tool) parseVerificationOutput(jsonlFile, verifiedURLsFile, metaFile string) error {
+	f, err := os.Open(jsonlFile)
+	if os.IsNotExist(err) {
+		_ = os.WriteFile(verifiedURLsFile, []byte{}, 0640)
+		_ = os.WriteFile(metaFile, []byte("[]"), 0640)
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to open httpx output: %w", err)
+	}
+	defer f.Close()
+
+	var verified []string
+	var metas []URLMeta
+	seen := make(map[string]struct{})
+
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+
+		var raw struct {
+			URL           string   `json:"url"`
+			StatusCode    int      `json:"status-code"`
+			Title         string   `json:"title"`
+			WebServer     string   `json:"webserver"`
+			ContentType   string   `json:"content-type"`
+			ContentLength int      `json:"content-length"`
+			Location      string   `json:"location"`
+			Tech          []string `json:"tech"`
+			Failed        bool     `json:"failed"`
+		}
+		if err := json.Unmarshal(line, &raw); err != nil {
+			continue
+		}
+		if raw.URL == "" || raw.Failed {
+			continue
+		}
+
+		if _, ok := seen[raw.URL]; !ok {
+			seen[raw.URL] = struct{}{}
+			verified = append(verified, raw.URL)
+			metas = append(metas, URLMeta{
+				URL:           raw.URL,
+				StatusCode:    raw.StatusCode,
+				Title:         raw.Title,
+				Server:        raw.WebServer,
+				ContentType:   raw.ContentType,
+				ContentLength: raw.ContentLength,
+				Location:      raw.Location,
+				Technologies:  raw.Tech,
+			})
+		}
+	}
+
+	// Write verified-urls.txt
+	vf, err := os.OpenFile(verifiedURLsFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0640)
+	if err != nil {
+		return fmt.Errorf("failed to write verified-urls.txt: %w", err)
+	}
+	for _, u := range verified {
+		fmt.Fprintln(vf, u)
+	}
+	vf.Close()
+
+	// Write metadata.json
+	metaData, _ := json.MarshalIndent(metas, "", "  ")
+	_ = os.WriteFile(metaFile, metaData, 0640)
+
+	return nil
+}
+
 // LiveHosts returns the count of live hosts from the output directory.
 func LiveHostCount(outDir string) int {
 	return countLines(filepath.Join(outDir, "live-hosts.txt"))
+}
+
+// VerifiedURLCount returns the count of verified URLs from the output directory.
+func VerifiedURLCount(outDir string) int {
+	return countLines(filepath.Join(outDir, "verified-urls.txt"))
 }
 
 func countLines(path string) int {
