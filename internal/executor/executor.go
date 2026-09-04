@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/frozeniceee/Reconpipeline/internal/logging"
+	"github.com/frozeniceee/Reconpipeline/internal/workspace"
 )
 
 // Result holds the outcome of a subprocess execution.
@@ -34,6 +35,10 @@ type Options struct {
 	Env []string
 	// WorkDir is the working directory for the subprocess.
 	WorkDir string
+	// Timeout sets a per-command execution deadline.
+	Timeout time.Duration
+	// MaxRetries is the number of retries on transient errors.
+	MaxRetries int
 }
 
 // Run executes a binary with the given arguments using exec.CommandContext.
@@ -44,9 +49,16 @@ func Run(ctx context.Context, binaryPath string, args []string, opts Options) Re
 		return Result{ExitCode: -1, Error: fmt.Errorf("binary path cannot be empty")}
 	}
 
+	execCtx := ctx
+	var cancel context.CancelFunc
+	if opts.Timeout > 0 {
+		execCtx, cancel = context.WithTimeout(ctx, opts.Timeout)
+		defer cancel()
+	}
+
 	logging.Verbose("Executing: %s %v", binaryPath, args)
 
-	cmd := exec.CommandContext(ctx, binaryPath, args...)
+	cmd := exec.CommandContext(execCtx, binaryPath, args...)
 
 	if opts.Stdout != nil {
 		cmd.Stdout = opts.Stdout
@@ -73,9 +85,9 @@ func Run(ctx context.Context, binaryPath string, args []string, opts Options) Re
 	dur := time.Since(start)
 
 	if err != nil {
-		if ctx.Err() != nil {
-			// Context cancelled — this is expected.
-			return Result{ExitCode: -1, Duration: dur, Error: ctx.Err()}
+		if execCtx.Err() != nil {
+			// Context cancelled or timed out
+			return Result{ExitCode: -1, Duration: dur, Error: execCtx.Err()}
 		}
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			return Result{ExitCode: exitErr.ExitCode(), Duration: dur, Error: err}
@@ -86,17 +98,68 @@ func Run(ctx context.Context, binaryPath string, args []string, opts Options) Re
 	return Result{ExitCode: 0, Duration: dur}
 }
 
-// RunToFile executes a binary and writes stdout to outPath.
-// stderr is written to the log.
-func RunToFile(ctx context.Context, binaryPath string, args []string, outPath string) Result {
-	outFile, err := os.OpenFile(outPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0640)
-	if err != nil {
-		return Result{ExitCode: -1, Error: fmt.Errorf("failed to open output file %q: %w", outPath, err)}
+// RunWithRetry executes a command, retrying up to maxRetries on transient errors.
+func RunWithRetry(ctx context.Context, binaryPath string, args []string, opts Options) Result {
+	maxRetries := opts.MaxRetries
+	if maxRetries <= 0 {
+		maxRetries = 1
 	}
-	defer outFile.Close()
 
-	return Run(ctx, binaryPath, args, Options{
-		Stdout: outFile,
+	var res Result
+	backoff := 500 * time.Millisecond
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		select {
+		case <-ctx.Done():
+			return Result{ExitCode: -1, Error: ctx.Err()}
+		default:
+		}
+
+		res = Run(ctx, binaryPath, args, opts)
+		if res.ExitCode == 0 || ctx.Err() != nil {
+			return res
+		}
+
+		if attempt < maxRetries {
+			logging.Verbose("Command failed (attempt %d/%d), retrying in %s: %v", attempt, maxRetries, backoff, res.Error)
+			select {
+			case <-time.After(backoff):
+			case <-ctx.Done():
+				return Result{ExitCode: -1, Error: ctx.Err()}
+			}
+			backoff *= 2
+		}
+	}
+
+	return res
+}
+
+// RunToFile executes a binary and writes stdout to outPath using atomic file writing.
+func RunToFile(ctx context.Context, binaryPath string, args []string, outPath string) Result {
+	dir := os.TempDir()
+	tmpFile, err := os.CreateTemp(dir, "reconpipe-out-*")
+	if err != nil {
+		return Result{ExitCode: -1, Error: fmt.Errorf("failed to create temporary file for %s: %w", outPath, err)}
+	}
+	tmpName := tmpFile.Name()
+	defer func() {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpName)
+	}()
+
+	res := Run(ctx, binaryPath, args, Options{
+		Stdout: tmpFile,
 		Stderr: io.Discard,
 	})
+
+	_ = tmpFile.Sync()
+	_ = tmpFile.Close()
+
+	if res.ExitCode == 0 || workspace.Exists(tmpName) {
+		if data, readErr := os.ReadFile(tmpName); readErr == nil && len(data) > 0 {
+			_ = workspace.WriteFileAtomic(outPath, data, 0640)
+		}
+	}
+
+	return res
 }

@@ -58,24 +58,44 @@ func (m *Manager) StageDir(targetDir string, stage int, name string) string {
 	return filepath.Join(targetDir, fmt.Sprintf("%02d-%s", stage, name))
 }
 
-// InitTargetDirs creates all stage directories for a target.
+// InitTargetDirs creates all stage directories and intelligence subdirectories for a target.
 func (m *Manager) InitTargetDirs(targetDir string) error {
-	stages := []struct {
-		n    int
-		name string
-	}{
-		{1, "subdomain-discovery"},
-		{2, "live-host-detection"},
-		{3, "active-crawling"},
-		{4, "historical-url-discovery"},
-		{5, "url-processing"},
-		{6, "pattern-analysis"},
+	dirs := []string{
+		filepath.Join(targetDir, "01-subdomain-discovery"),
+		filepath.Join(targetDir, "01-subdomain-discovery", "dns"),
+		filepath.Join(targetDir, "01-subdomain-discovery", "classified"),
+		filepath.Join(targetDir, "02-live-host-detection"),
+		filepath.Join(targetDir, "02-live-host-detection", "status"),
+		filepath.Join(targetDir, "02-live-host-detection", "technologies"),
+		filepath.Join(targetDir, "03-active-crawling"),
+		filepath.Join(targetDir, "03-active-crawling", "katana"),
+		filepath.Join(targetDir, "04-historical-url-discovery"),
+		filepath.Join(targetDir, "04-historical-url-discovery", "gau"),
+		filepath.Join(targetDir, "05-url-processing"),
+		filepath.Join(targetDir, "05-url-processing", "raw"),
+		filepath.Join(targetDir, "05-url-processing", "normalized"),
+		filepath.Join(targetDir, "05-url-processing", "deduplicated"),
+		filepath.Join(targetDir, "05-url-processing", "api"),
+		filepath.Join(targetDir, "05-url-processing", "javascript"),
+		filepath.Join(targetDir, "05-url-processing", "parameters"),
+		filepath.Join(targetDir, "05-url-processing", "clusters"),
+		filepath.Join(targetDir, "05-url-processing", "interesting"),
+		filepath.Join(targetDir, "05-url-processing", "priority"),
+		filepath.Join(targetDir, "06-url-verification"),
+		filepath.Join(targetDir, "06-pattern-analysis"),
+		filepath.Join(targetDir, "06-pattern-analysis", "gf"),
+		filepath.Join(targetDir, "06-pattern-analysis", "patterns"),
+		filepath.Join(targetDir, "07-pattern-analysis"),
+		filepath.Join(targetDir, "07-pattern-analysis", "gf"),
+		filepath.Join(targetDir, "07-pattern-analysis", "patterns"),
+		filepath.Join(targetDir, "summary"),
+		filepath.Join(targetDir, "history"),
+		filepath.Join(targetDir, "comparison"),
 	}
 
-	for _, s := range stages {
-		d := m.StageDir(targetDir, s.n, s.name)
+	for _, d := range dirs {
 		if err := os.MkdirAll(d, 0750); err != nil {
-			return fmt.Errorf("failed to create stage directory %q: %w", d, err)
+			return fmt.Errorf("failed to create directory %q: %w", d, err)
 		}
 	}
 	return nil
@@ -114,4 +134,49 @@ func IsExecutable(path string) bool {
 		return false
 	}
 	return info.Mode()&0111 != 0
+}
+
+// WriteFileAtomic writes data to a temporary file in the same directory, flushes it,
+// and atomically renames it to the destination path to prevent partial file corruption.
+func WriteFileAtomic(destPath string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(destPath)
+	if err := os.MkdirAll(dir, 0750); err != nil {
+		return fmt.Errorf("failed to create parent directory %s: %w", dir, err)
+	}
+
+	tmpFile, err := os.CreateTemp(dir, ".tmp-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary file: %w", err)
+	}
+	tmpName := tmpFile.Name()
+	defer func() {
+		_ = os.Remove(tmpName) // Clean up if rename didn't happen
+	}()
+
+	if _, err := tmpFile.Write(data); err != nil {
+		_ = tmpFile.Close()
+		return fmt.Errorf("failed to write to temporary file: %w", err)
+	}
+
+	if err := tmpFile.Sync(); err != nil {
+		_ = tmpFile.Close()
+		return fmt.Errorf("failed to sync temporary file: %w", err)
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("failed to close temporary file: %w", err)
+	}
+
+	_ = os.Chmod(tmpName, perm)
+
+	// Replace existing file atomically
+	if err := os.Rename(tmpName, destPath); err != nil {
+		// Windows fallback if destination file is locked/exists
+		_ = os.Remove(destPath)
+		if retryErr := os.Rename(tmpName, destPath); retryErr != nil {
+			return fmt.Errorf("failed to rename %s to %s: %w", tmpName, destPath, retryErr)
+		}
+	}
+
+	return nil
 }

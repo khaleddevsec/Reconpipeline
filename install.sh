@@ -2,13 +2,15 @@
 # ============================================================
 # Reconpipeline Installer
 # Made by frozeniceee
-# Version: v2.5.0
+# Version: v2.5.3
 # ============================================================
 set -euo pipefail
 
-RECONPIPELINE_VERSION="v2.5.0"
-INSTALL_DIR="/usr/local/bin"
+RECONPIPELINE_VERSION="v2.5.3"
+BIN_NAME="reconpipeline"
 BINARY_NAME="reconpipeline"
+INSTALL_DIR="/usr/local/bin"
+WORKSPACE_DIR="$HOME/.reconpipeline"
 
 # ─── Colours ─────────────────────────────────────────────────────────────────
 RED='\033[0;31m'

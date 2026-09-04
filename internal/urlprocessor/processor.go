@@ -8,9 +8,21 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
+
+	"github.com/frozeniceee/Reconpipeline/internal/intelligence/urlengine"
+	"github.com/frozeniceee/Reconpipeline/internal/scope"
 )
+
+// SelectForVerification wraps urlengine.SelectForVerification.
+func SelectForVerification(uniqueURLs []string, target *scope.Target, maxURLs int) []string {
+	return urlengine.SelectForVerification(uniqueURLs, target, maxURLs)
+}
+
+// IsStaticAsset wraps urlengine.IsStaticAsset.
+func IsStaticAsset(raw string) bool {
+	return urlengine.IsStaticAsset(raw)
+}
 
 // Results holds the counts from URL processing.
 type Results struct {
@@ -21,55 +33,41 @@ type Results struct {
 	JavaScript    int
 	Parameterised int
 	Interesting   int
+
+	// V2.0 Intelligent Core Extensions
+	TotalClusters  int
+	HighInterest   int
+	MediumInterest int
+	LowInterest    int
+	HighPriority   int
+	MediumPriority int
+	LowPriority    int
 }
 
 // Process merges, normalises, deduplicates, and classifies URLs from
-// katanaFile and gauFile, writing all output files to outDir.
+// katanaFile and gauFile using the Smart URL Engine.
 func Process(katanaFile, gauFile, outDir string) (*Results, error) {
-	if err := os.MkdirAll(outDir, 0750); err != nil {
-		return nil, fmt.Errorf("failed to create output directory: %w", err)
-	}
-
-	// Step 1: Merge both sources.
-	raw, err := merge(katanaFile, gauFile)
+	engine := urlengine.NewEngine()
+	res, err := engine.Process(katanaFile, gauFile, outDir)
 	if err != nil {
-		return nil, fmt.Errorf("merge failed: %w", err)
-	}
-
-	allFile := filepath.Join(outDir, "all-urls.txt")
-	if err := writeLines(allFile, raw); err != nil {
 		return nil, err
-	}
-
-	// Step 2: Normalise.
-	normalised := normaliseAll(raw)
-	normFile := filepath.Join(outDir, "normalized-urls.txt")
-	if err := writeLines(normFile, normalised); err != nil {
-		return nil, err
-	}
-
-	// Step 3: Deduplicate.
-	unique := deduplicate(normalised)
-	sort.Strings(unique)
-	uniqueFile := filepath.Join(outDir, "unique-urls.txt")
-	if err := writeLines(uniqueFile, unique); err != nil {
-		return nil, err
-	}
-
-	// Step 4: Classify.
-	classes, err := classify(unique, outDir)
-	if err != nil {
-		return nil, fmt.Errorf("classification failed: %w", err)
 	}
 
 	return &Results{
-		TotalMerged:   len(raw),
-		Normalised:    len(normalised),
-		Unique:        len(unique),
-		API:           classes["api"],
-		JavaScript:    classes["javascript"],
-		Parameterised: classes["parameterized"],
-		Interesting:   classes["interesting"],
+		TotalMerged:    res.TotalRaw,
+		Normalised:     res.TotalNormalized,
+		Unique:         res.TotalUnique,
+		API:            res.APIEndpoints,
+		JavaScript:     res.JavaScriptURLs,
+		Parameterised:  res.Parameterized,
+		Interesting:    res.HighInterest + res.MediumInterest,
+		TotalClusters:  res.TotalClusters,
+		HighInterest:   res.HighInterest,
+		MediumInterest: res.MediumInterest,
+		LowInterest:    res.LowInterest,
+		HighPriority:   res.HighPriority,
+		MediumPriority: res.MediumPriority,
+		LowPriority:    res.LowPriority,
 	}, nil
 }
 

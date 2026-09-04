@@ -11,45 +11,62 @@
 
 Reconpipeline  
 Made by frozeniceee  
-Version: v2.5.0
+Version: v2.6.0  
+Release: V2.6 — Smart URL Verification
 
 ---
 
 ## Overview
 
-Reconpipeline is a single-command automated reconnaissance pipeline for Linux.
+Reconpipeline is a single-command automated reconnaissance orchestration pipeline
+built for Linux and cross-platform environments. It coordinates Subfinder, HTTPX, Katana, GAU, and GF to perform
+subdomain discovery, DNS intelligence gathering, live host detection, technology
+fingerprinting, HTTP status categorization, active crawling, historical URL discovery,
+smart URL normalization, deduplication, URL clustering, parameter intelligence,
+endpoint prioritization, smart URL selection and live verification (HTTPX #2), pattern analysis, scan history persistence, delta change
+detection, and standalone HTML/JSON reporting.
 
-It internally orchestrates Subfinder, HTTPX, Katana, GAU, and GF to perform
-subdomain discovery, live host detection, active crawling, historical URL
-discovery, URL classification, and pattern analysis.
-
-The user interacts with one tool:
+The user interacts with one command:
 
 ```
 reconpipeline example.com
 ```
 
-No manual installation of internal tools is required. No PATH configuration.
-No per-tool knowledge needed.
+All internal tools are managed automatically in `~/.reconpipeline/`. No manual tool
+installation, PATH configuration, or per-tool knowledge is required.
 
 ---
 
 ## Features
 
-- Single command: `reconpipeline example.com`
-- Automatic management of all internal tools
-- Six-stage reconnaissance pipeline
-- Concurrent active crawling and historical URL discovery
-- Pure Go URL processing: merge, normalise, deduplicate, classify
-- Pattern analysis for XSS, SQLi, LFI, SSRF, open redirect
-- Scan modes: full, active, passive
-- Resume support
-- Graceful interruption handling
-- Self-update system
-- Doctor command for environment inspection
-- Dry-run mode
-- TXT and JSON reports
-- Strict target scope enforcement
+- Single command execution: `reconpipeline <target>`
+- Automatic internal tool management (Subfinder, HTTPX, Katana, GAU, GF)
+- Seven-stage reconnaissance pipeline with modular lifecycle states
+- Profiles: `full` (default), `fast` (reduced crawl depth/timeout), `passive` (passive-only)
+- Smart Stage Caching & Invalidation (separate from history)
+- Atomic File Operations (`.tmp` write + sync + rename) to protect data integrity
+- Controlled Parallelism (bounded concurrent execution of active crawling and historical discovery)
+- Resource and process timeout handling with retry backoff
+- Graceful Signal Handling (`Ctrl+C` / SIGINT / SIGTERM) with partial state preservation
+- Asset Classification (production, development, staging, api, admin, auth, cdn, mail, static, unknown)
+- DNS Intelligence (A records, AAAA records, CNAME resolution, IP aggregation)
+- Technology Intelligence (Nginx, Apache, WordPress, Node.js, PHP, CDN, Cloud)
+- HTTP Status Intelligence (2xx, 3xx, 4xx, 5xx, interesting status codes)
+- Smart URL Normalization (fragment stripping, query sorting, trailing slash handling)
+- URL Clustering (endpoint family grouping: `/api/user/{id}`, `/item/{uuid}`, `/download/{hash}`)
+- API Endpoint Detection (`/api/`, `/v1/`, `/graphql`, `/rest/`, `/swagger`, `/openapi`)
+- JavaScript Intelligence (JS file isolation and route/endpoint extraction)
+- Parameter Intelligence (categorization: identifier, url, file_path, redirect, search, pagination, auth_token)
+- Interesting Endpoint Detection (high, medium, low interest heuristics)
+- Smart Prioritization (deterministic, explainable priority scoring)
+- Smart URL Selection & Verification (HTTPX #2 validating responsiveness and collecting metadata)
+- GF Pattern Analysis (XSS, SQLi, LFI, SSRF, Open Redirect on verified URLs)
+- Scan History Persistence (`results/<target>/history/<scan_id>/`)
+- Delta Change Detection (comparing current scan against previous scans)
+- Standalone, responsive HTML Dashboard (`report.html`) with zero external dependencies
+- Machine-readable structured JSON reports (`report.json`)
+- Comprehensive CLI commands (`history`, `compare`, `report`, `doctor`, `update`, `version`)
+- Per-scan logging (`logs/scan-<id>.log`) and `--no-color` mode
 - Linux amd64 and arm64 support
 
 ---
@@ -57,71 +74,97 @@ No per-tool knowledge needed.
 ## Architecture
 
 ```
-Target
-  |
-  v
-Subfinder (subdomain discovery)
-  |
-  v
-HTTPX (live host detection)
-  |
-  +-------------------+
-  |                   |
-  v                   v
-Katana              GAU
-(active crawling)   (historical URLs)
-  |                   |
-  +---------+---------+
-            |
-            v
-    URL Processing (Go)
-    - merge
-    - normalise
-    - deduplicate
-    - classify
-            |
-            v
-    Pattern Analysis (GF)
-    - XSS
-    - SQLi
-    - LFI
-    - SSRF
-    - Open Redirect
-            |
-            v
-        Report
+                         TARGET
+                            |
+                            v
+                  SUBDOMAIN DISCOVERY
+                            |
+                            v
+                     DNS INTELLIGENCE
+                            |
+                            v
+                   ASSET CLASSIFICATION
+                            |
+                            v
+                   LIVE HOST DETECTION (HTTPX #1)
+                            |
+                 +----------+----------+
+                 |                     |
+                 v                     v
+          TECHNOLOGIES              STATUS
+                 |                     |
+                 +----------+----------+
+                            |
+                 +----------+----------+
+                 |                     |
+                 v                     v
+              KATANA                  GAU
+         (active crawl)         (historical URLs)
+                 |                     |
+                 +----------+----------+
+                            |
+                            v
+                    SMART URL ENGINE
+                            |
+             +--------------+--------------+
+             |              |              |
+             v              v              v
+            API             JS        PARAMETERS
+             |              |              |
+             +--------------+--------------+
+                            |
+                            v
+                      NORMALIZATION
+                            |
+                            v
+                      DEDUPLICATION
+                            |
+                            v
+                     URL CLUSTERING
+                            |
+                            v
+                   INTEREST DETECTION
+                            |
+                            v
+                     PRIORITIZATION
+                            |
+                            v
+                  SMART URL SELECTION
+                            |
+                            v
+                  URL VERIFICATION (HTTPX #2)
+                            |
+                            v
+                     PATTERN ANALYSIS (GF)
+                            |
+                            v
+                     HISTORY & DELTAS
+                            |
+             +--------------+--------------+
+             |              |              |
+             v              v              v
+         HTML DASHBOARD  JSON REPORT   TEXT REPORT
 ```
 
-Katana and GAU run concurrently after HTTPX completes.
-
 ---
 
-## Pipeline
+## Pipeline Stages
 
-| Stage | Tool     | Output                              |
-|-------|----------|-------------------------------------|
-| 01    | Subfinder | subdomains.txt                     |
-| 02    | HTTPX     | live-hosts.txt, metadata.json      |
-| 03    | Katana    | katana-urls.txt                    |
-| 04    | GAU       | gau-urls.txt                       |
-| 05    | Go        | all-urls.txt, unique-urls.txt, ... |
-| 06    | GF        | xss.txt, sqli.txt, lfi.txt, ...    |
-
----
-
-## Requirements
-
-- Linux (amd64 or arm64)
-- Go 1.21 or later (for building only)
-- Internet connection (for tool downloads on first run)
-
-The compiled Reconpipeline binary does not require Go at runtime.
+| Stage | Name                       | Engine / Tool  | Primary Outputs |
+|-------|----------------------------|----------------|-----------------|
+| 01    | Subdomain Discovery        | Subfinder, DNS | `subdomains.txt`, `dns/`, `classified/`, `metadata.json` |
+| 02    | Live Host Detection        | HTTPX #1, Tech | `live-hosts.txt`, `status/`, `technologies/`, `metadata.json` |
+| 03    | Active Crawling            | Katana         | `katana-urls.txt`, `katana/urls.txt` |
+| 04    | Historical URL Discovery   | GAU            | `gau-urls.txt`, `gau/urls.txt` |
+| 05    | URL Processing             | Smart URL Core | `raw/`, `normalized/`, `deduplicated/`, `api/`, `javascript/`, `parameters/`, `clusters/`, `interesting/`, `priority/` |
+| 06    | URL Verification           | HTTPX #2       | `input-urls.txt`, `verified-urls.txt`, `httpx.jsonl`, `metadata.json` |
+| 07    | Pattern Analysis           | GF             | `xss.txt`, `sqli.txt`, `lfi.txt`, `ssrf.txt`, `redirect.txt`, `patterns/` |
 
 ---
 
 ## Installation
 
-### Step-by-step
+### Standard Installation
 
 ```bash
 cd /root
@@ -132,134 +175,124 @@ chmod +x install.sh
 ./install.sh
 ```
 
-### One-line
+### One-Line Command
 
 ```bash
 cd /root && mkdir -p Reconpipeline && cd Reconpipeline && git clone https://github.com/frozeniceee/Reconpipeline.git . && chmod +x install.sh && ./install.sh
 ```
-
-The installer:
-
-1. Detects Linux
-2. Detects CPU architecture
-3. Detects Go (prefers `/usr/local/go/bin/go`, falls back to PATH)
-4. Builds Reconpipeline with version v2.5.0 injected at build time
-5. Installs the binary to `/usr/local/bin/reconpipeline`
-6. Creates the `~/.reconpipeline/` workspace
-7. Verifies the installation
-
----
-
-## Quick Start
-
-```bash
-reconpipeline example.com
-```
-
-On first run, Reconpipeline automatically downloads and installs all required
-internal tools before beginning the scan.
 
 ---
 
 ## Usage
 
 ```bash
+# Basic scan
 reconpipeline example.com
 
-reconpipeline example.com --mode full
+# Target with protocol
+reconpipeline https://example.com/
 
-reconpipeline example.com --mode active
+# Execution profiles
+reconpipeline example.com --profile full
+reconpipeline example.com --profile fast
+reconpipeline example.com --profile passive
 
-reconpipeline example.com --mode passive
-
+# Resume interrupted scan
 reconpipeline example.com --resume
 
-reconpipeline example.com --dry-run
+# Bypass stage caching
+reconpipeline example.com --no-cache
 
-reconpipeline example.com --output ./results
+# Custom output directory
+reconpipeline example.com --output ./my-results
 
-reconpipeline example.com --timeout 30m
+# Concurrency and timeout
+reconpipeline example.com --threads 20 --timeout 1h
 
-reconpipeline example.com --threads 10
+# View scan history
+reconpipeline history example.com
+reconpipeline history example.com --details
 
-reconpipeline --doctor
+# Compare scans for change detection
+reconpipeline compare example.com
+reconpipeline compare example.com --from scan-20260827-100000 --to scan-20260828-110000
 
+# View latest scan reports
+reconpipeline report example.com
+
+# Diagnostic commands
 reconpipeline doctor
-
-reconpipeline --update
-
-reconpipeline update
-
-reconpipeline --version
-
 reconpipeline version
+reconpipeline update
 ```
 
 ---
 
-## CLI Options
+## CLI Options & Commands
 
 ```
-Global:
+Usage:
 
-    -h, --help              Show help
-    -v, --version           Show version
-        --update            Update Reconpipeline
-        --doctor            Check system and dependencies
+    reconpipeline <target>
+
+Commands:
+
+    history <target>   View historical scans for target
+    compare <target>   Compare recent scans for changes
+    report <target>    Display latest scan report
+    doctor             Check system and dependencies
+    update             Update Reconpipeline
+    version            Show version
+
+Options:
+
+    -h, --help              Show help information
+    -v, --version           Show current version and update status
+        --update            Update Reconpipeline to the latest release
+        --doctor            Inspect system and dependency health
+
+Profiles & Modes:
+        --profile <name>    Profile: full, fast, passive (default: full)
+        --mode <mode>       Scan mode: full, active, passive (default: full)
+        --no-cache          Bypass stage caching
 
 Scan:
-
-        --resume            Resume a previous scan
-    -o, --output <dir>      Output directory for results
-        --mode <mode>       Scan mode: full, active, passive
-        --dry-run           Show pipeline plan without executing
+        --resume            Resume an interrupted scan from saved state
+    -o, --output <dir>      Custom output directory for results
+        --dry-run           Display execution plan without running tools
 
 Runtime:
-
-        --timeout <d>       Scan timeout (e.g. 30m, 1h)
-        --threads <n>       Concurrency level (default: 10)
+        --timeout <dur>     Scan timeout duration (e.g. 30m, 1h) (default: 30m)
+        --threads <num>     Concurrency level (default: 10)
+        --workers <num>     Worker concurrency alias
 
 Display:
-
+        --no-color          Disable coloured terminal output
     -q, --quiet             Minimal output
-        --verbose           Detailed output
+        --verbose           Detailed execution logs
 ```
 
 ---
 
-## Modes
+## Configuration & Profiles
 
-| Mode    | Description                                      |
-|---------|--------------------------------------------------|
-| full    | All stages: subdomain, live, crawl, historical   |
-| active  | Subfinder, HTTPX, Katana. No historical (GAU).   |
-| passive | Subfinder, HTTPX, GAU. No active crawl (Katana). |
+Reconpipeline works out of the box with zero configuration. Optional user configuration
+can be defined in `~/.config/reconpipeline/config.yaml` or `~/.reconpipeline/config/config.yaml`:
 
----
-
-## Dependency Management
-
-Reconpipeline automatically manages all internal tools in:
-
-```
-~/.reconpipeline/
-├── tools/
-│   ├── subfinder/
-│   ├── httpx/
-│   ├── katana/
-│   ├── gau/
-│   └── gf/
-├── versions/
-│   └── manifest.json
-├── cache/
-├── config/
-└── logs/
+```yaml
+default_profile: full
+default_threads: 10
+default_timeout: 30m
+default_output: results
+cache_enabled: true
+log_level: info
 ```
 
-Before each scan, Reconpipeline verifies that all tools are present and
-functional. Missing or broken tools are installed or repaired automatically.
+### Profiles Overview
 
-The user does not need to install, configure, or update these tools manually.
+- **full**: Comprehensive reconnaissance with maximum discovery depth (default).
+- **fast**: Streamlined reconnaissance with reduced crawl depth and shorter timeouts.
+- **passive**: Non-intrusive reconnaissance skipping active crawling (Katana).
 
 ---
 
@@ -269,14 +302,25 @@ The user does not need to install, configure, or update these tools manually.
 results/
 └── example.com/
     ├── 01-subdomain-discovery/
-    │   └── subdomains.txt
+    │   ├── subdomains.txt
+    │   ├── metadata.json
+    │   ├── classified/
+    │   └── dns/
+    │
     ├── 02-live-host-detection/
     │   ├── live-hosts.txt
-    │   └── metadata.json
+    │   ├── metadata.json
+    │   ├── status/
+    │   └── technologies/
+    │
     ├── 03-active-crawling/
-    │   └── katana-urls.txt
+    │   ├── katana-urls.txt
+    │   └── katana/urls.txt
+    │
     ├── 04-historical-url-discovery/
-    │   └── gau-urls.txt
+    │   ├── gau-urls.txt
+    │   └── gau/urls.txt
+    │
     ├── 05-url-processing/
     │   ├── all-urls.txt
     │   ├── normalized-urls.txt
@@ -284,161 +328,88 @@ results/
     │   ├── api-urls.txt
     │   ├── javascript-urls.txt
     │   ├── parameterized-urls.txt
-    │   └── interesting-urls.txt
+    │   ├── interesting-urls.txt
+    │   ├── raw/
+    │   ├── normalized/
+    │   ├── deduplicated/
+    │   ├── clusters/
+    │   ├── api/
+    │   ├── javascript/
+    │   ├── parameters/
+    │   ├── interesting/
+    │   └── priority/
+    │
     ├── 06-pattern-analysis/
     │   ├── xss.txt
     │   ├── sqli.txt
     │   ├── lfi.txt
     │   ├── ssrf.txt
     │   ├── redirect.txt
-    │   └── other-patterns.txt
+    │   ├── gf/
+    │   └── patterns/
+    │
+    ├── history/
+    │   └── scan-20260827-183042/
+    │       ├── scan.json
+    │       ├── summary.json
+    │       ├── summary.txt
+    │       ├── report.json
+    │       ├── report.html
+    │       ├── subdomains.txt
+    │       ├── live-hosts.txt
+    │       ├── unique-urls.txt
+    │       └── statistics.json
+    │
+    ├── comparison/
+    │   ├── new-subdomains.txt
+    │   ├── removed-subdomains.txt
+    │   ├── new-hosts.txt
+    │   ├── removed-hosts.txt
+    │   ├── new-urls.txt
+    │   ├── removed-urls.txt
+    │   ├── changed-assets.json
+    │   ├── comparison.json
+    │   └── comparison.txt
+    │
+    ├── summary/
+    │   ├── statistics.json
+    │   └── summary.txt
+    │
+    ├── report.html
     ├── report.txt
     ├── report.json
     └── run.json
-```
-
-Custom output directory:
-
-```bash
-reconpipeline example.com --output ./my-results
-```
-
-Results are written to `./my-results/example.com/`.
-
----
-
-## Resume
-
-Start a scan and interrupt it:
-
-```
-Ctrl+C
-```
-
-Reconpipeline saves scan progress to `run.json`. Resume from where it stopped:
-
-```bash
-reconpipeline example.com --resume
-```
-
-Completed stages are skipped. The scan continues from the first incomplete stage.
-
----
-
-## Reports
-
-Two report files are generated after each scan:
-
-`report.txt` — human-readable summary  
-`report.json` — machine-readable structured data
-
-Pattern matches are labelled as "Potential Pattern Matches" and are not
-confirmed vulnerabilities.
-
----
-
-## Doctor
-
-```bash
-reconpipeline doctor
-```
-
-Displays:
-
-- Application version and installation status
-- Operating system and architecture
-- Workspace directory status
-- Status of all managed tools
-
----
-
-## Update
-
-```bash
-reconpipeline update
-```
-
-Reconpipeline checks for the latest release on GitHub, downloads the correct
-binary for your platform, and replaces itself atomically.
-
-Scan results, configuration, cache, and managed dependencies are preserved.
-
----
-
-## Development
-
-Requirements:
-
-- Go 1.21+
-- Linux (for building release binaries)
-
-```bash
-# Clone
-git clone https://github.com/frozeniceee/Reconpipeline.git
-cd Reconpipeline
-
-# Build
-make build
-
-# Test
-make test
-
-# Vet
-make vet
-
-# Format
-make fmt
-
-# Build release binaries
-make release
 ```
 
 ---
 
 ## Testing
 
+Run the full unit and integration test suite:
+
 ```bash
-go test ./...
+go test -v ./...
 ```
 
-Test coverage:
+---
 
-- Target normalisation
-- Scope validation
-- URL processing (merge, normalise, deduplicate, classify)
-- Version comparison
-- Workspace creation
-- Report generation
-- Run state save and load
+## Branching Model
+
+- `main`: Stable production branch. Tagged releases (e.g. `v2.5.0`, `v2.5.1`, `v2.5.2`, `v2.5.3`).
+- `develop`: Active development branch for new capabilities and optimizations.
 
 ---
 
-## Contributing
+## Legal & Authorized Use Notice
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+Reconpipeline is designed exclusively for authorized security assessments, bug bounty
+reconnaissance, defensive security testing, and asset discovery.
 
----
-
-## Responsible Use
-
-Reconpipeline is intended for authorised security testing, security research,
-asset discovery, and reconnaissance.
-
-Users are responsible for ensuring they have permission to test their targets.
-
-Do not use Reconpipeline against systems you do not have authorisation to test.
+Users are strictly responsible for obtaining proper authorization prior to testing targets.
+Unauthorized scanning or testing of target systems is prohibited.
 
 ---
 
 ## License
 
-MIT License. See [LICENSE](LICENSE).
-
-Third-party tools (Subfinder, HTTPX, Katana, GAU, GF) are subject to their
-own licenses. See [LICENSE](LICENSE) for details.
-
----
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md).
+MIT License. See [LICENSE](LICENSE) for details.
