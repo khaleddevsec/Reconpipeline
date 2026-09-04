@@ -3,7 +3,7 @@
 # Made by frozeniceee
 # ============================================================
 
-VERSION := v2.5.3
+VERSION := v2.6.0
 MODULE  := github.com/frozeniceee/Reconpipeline
 LDFLAGS := -s -w -X $(MODULE)/internal/version.Version=$(VERSION)
 
