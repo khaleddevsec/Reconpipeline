@@ -68,6 +68,15 @@ type Counters struct {
 	LFIMatches      int `json:"lfi_matches"`
 	SSRFMatches     int `json:"ssrf_matches"`
 	RedirectMatches int `json:"redirect_matches"`
+
+	// V2.8 Pattern Intelligence Layer Metrics
+	TotalCandidates          int `json:"total_candidates,omitempty"`
+	HighConfidenceCandidates int `json:"high_confidence_candidates,omitempty"`
+	TakeoverCandidates       int `json:"takeover_candidates,omitempty"`
+	APICandidates            int `json:"api_candidates,omitempty"`
+	AuthCandidates           int `json:"auth_candidates,omitempty"`
+	AdminCandidates          int `json:"admin_candidates,omitempty"`
+	SensitiveFileCandidates  int `json:"sensitive_file_candidates,omitempty"`
 }
 
 // RunState is the per-scan state written to run.json.

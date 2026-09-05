@@ -357,7 +357,17 @@ func (p *Pipeline) Run(ctx context.Context) error {
 
 	if !p.shouldSkip("pattern-analysis", summaryPatternFile) {
 		err = p.runStage(ctx, "pattern-analysis", stage7Dir, func() error {
-			counts, runErr := p.gf.RunAll(ctx, gfInputFile, stage7Dir)
+			actx := &gf.AnalysisContext{
+				TargetDomain:     p.target.Domain,
+				VerifiedURLsFile: gfInputFile,
+				HTTPX2MetaFile:   filepath.Join(stageDir(6, "url-verification"), "metadata.json"),
+				HTTPX1MetaFile:   filepath.Join(stageDir(2, "live-host-detection"), "metadata.json"),
+				DNSRecordsFile:   filepath.Join(stageDir(1, "subdomain-discovery"), "dns", "dns-records.json"),
+				SubdomainsFile:   subdomainsFile,
+				LiveHostsFile:    liveHostsFile,
+			}
+
+			summary, counts, runErr := p.gf.RunIntelligence(ctx, actx, gfInputFile, stage7Dir)
 			if counts != nil {
 				p.state.Counters.XSSMatches = counts["xss"]
 				p.state.Counters.SQLiMatches = counts["sqli"]
@@ -365,13 +375,36 @@ func (p *Pipeline) Run(ctx context.Context) error {
 				p.state.Counters.SSRFMatches = counts["ssrf"]
 				p.state.Counters.RedirectMatches = counts["redirect"]
 
-				summaryData, _ := json.MarshalIndent(counts, "", "  ")
-				_ = os.WriteFile(summaryPatternFile, summaryData, 0640)
+				if summary != nil {
+					p.state.Counters.TotalCandidates = summary.TotalMatches
+					p.state.Counters.HighConfidenceCandidates = summary.ConfidenceCounts[gf.ConfidenceHigh]
+					p.state.Counters.TakeoverCandidates = summary.TakeoverCount
+					if apiCat, ok := summary.Categories[string(gf.CategoryAPI)]; ok {
+						p.state.Counters.APICandidates = apiCat.TotalMatches
+					}
+					if authCat, ok := summary.Categories[string(gf.CategoryAuth)]; ok {
+						p.state.Counters.AuthCandidates = authCat.TotalMatches
+					}
+					if admCat, ok := summary.Categories[string(gf.CategoryAdmin)]; ok {
+						p.state.Counters.AdminCandidates = admCat.TotalMatches
+					}
+					if sensCat, ok := summary.Categories[string(gf.CategorySensitiveFile)]; ok {
+						p.state.Counters.SensitiveFileCandidates = sensCat.TotalMatches
+					}
+				}
 
 				// Backward compatibility copy to legacy 06-pattern-analysis
 				_ = os.MkdirAll(filepath.Join(legacyStage6Dir, "patterns"), 0750)
 				_ = os.MkdirAll(filepath.Join(legacyStage6Dir, "gf"), 0750)
-				_ = os.WriteFile(filepath.Join(legacyStage6Dir, "patterns", "pattern-summary.json"), summaryData, 0640)
+				if summaryData, rErr := os.ReadFile(summaryPatternFile); rErr == nil {
+					_ = os.WriteFile(filepath.Join(legacyStage6Dir, "patterns", "pattern-summary.json"), summaryData, 0640)
+				}
+				if resData, rErr := os.ReadFile(filepath.Join(stage7Dir, "patterns", "pattern-results.json")); rErr == nil {
+					_ = os.WriteFile(filepath.Join(legacyStage6Dir, "patterns", "pattern-results.json"), resData, 0640)
+				}
+				if takeData, rErr := os.ReadFile(filepath.Join(stage7Dir, "patterns", "takeover-candidates.json")); rErr == nil {
+					_ = os.WriteFile(filepath.Join(legacyStage6Dir, "patterns", "takeover-candidates.json"), takeData, 0640)
+				}
 
 				for pName := range counts {
 					src := filepath.Join(stage7Dir, pName+".txt")
@@ -380,6 +413,13 @@ func (p *Pipeline) Run(ctx context.Context) error {
 						_ = os.WriteFile(dst, d, 0640)
 						_ = os.WriteFile(filepath.Join(legacyStage6Dir, pName+".txt"), d, 0640)
 						_ = os.WriteFile(filepath.Join(legacyStage6Dir, "gf", pName+".txt"), d, 0640)
+					}
+				}
+				// Copy takeover-candidates.txt and other-patterns.txt to legacy stage
+				for _, extra := range []string{"takeover-candidates.txt", "other-patterns.txt"} {
+					src := filepath.Join(stage7Dir, extra)
+					if d, rErr := os.ReadFile(src); rErr == nil {
+						_ = os.WriteFile(filepath.Join(legacyStage6Dir, extra), d, 0640)
 					}
 				}
 			}
