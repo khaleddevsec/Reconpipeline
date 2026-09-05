@@ -127,6 +127,15 @@ func writeTXT(r *Report, path string, comp *comparison.Result) error {
 	sb.WriteString(fmt.Sprintf("LFI          : %s\n", formatCount(r.Counters.LFIMatches)))
 	sb.WriteString(fmt.Sprintf("SSRF         : %s\n", formatCount(r.Counters.SSRFMatches)))
 	sb.WriteString(fmt.Sprintf("Open Redirect: %s\n", formatCount(r.Counters.RedirectMatches)))
+	if r.Counters.TotalCandidates > 0 {
+		sb.WriteString(fmt.Sprintf("Total Cand   : %s\n", formatCount(r.Counters.TotalCandidates)))
+		sb.WriteString(fmt.Sprintf("High Conf    : %s\n", formatCount(r.Counters.HighConfidenceCandidates)))
+		sb.WriteString(fmt.Sprintf("Takeovers    : %s\n", formatCount(r.Counters.TakeoverCandidates)))
+		sb.WriteString(fmt.Sprintf("APIs         : %s\n", formatCount(r.Counters.APICandidates)))
+		sb.WriteString(fmt.Sprintf("Auth Flows   : %s\n", formatCount(r.Counters.AuthCandidates)))
+		sb.WriteString(fmt.Sprintf("Admin Panels : %s\n", formatCount(r.Counters.AdminCandidates)))
+		sb.WriteString(fmt.Sprintf("Sensitive Fls: %s\n", formatCount(r.Counters.SensitiveFileCandidates)))
+	}
 	sb.WriteString("\n")
 
 	if comp != nil && comp.HasPrevious {

@@ -11,8 +11,8 @@
 
 Reconpipeline  
 Made by frozeniceee  
-Version: v2.6.0  
-Release: V2.6 — Smart URL Verification
+Version: v2.8.0  
+Release: V2.8 — Advanced GF Pattern Intelligence Layer
 
 ---
 
@@ -23,7 +23,7 @@ built for Linux and cross-platform environments. It coordinates Subfinder, HTTPX
 subdomain discovery, DNS intelligence gathering, live host detection, technology
 fingerprinting, HTTP status categorization, active crawling, historical URL discovery,
 smart URL normalization, deduplication, URL clustering, parameter intelligence,
-endpoint prioritization, smart URL selection and live verification (HTTPX #2), pattern analysis, scan history persistence, delta change
+endpoint prioritization, smart URL selection and live verification (HTTPX #2), advanced pattern intelligence, subdomain takeover detection, scan history persistence, delta change
 detection, and standalone HTML/JSON reporting.
 
 The user interacts with one command:
@@ -60,11 +60,15 @@ installation, PATH configuration, or per-tool knowledge is required.
 - Interesting Endpoint Detection (high, medium, low interest heuristics)
 - Smart Prioritization (deterministic, explainable priority scoring)
 - Smart URL Selection & Verification (HTTPX #2 validating responsiveness and collecting metadata)
-- GF Pattern Analysis (XSS, SQLi, LFI, SSRF, Open Redirect on verified URLs)
+- Advanced GF Pattern Intelligence across 12 categories (35+ pattern targets)
+- Subdomain Takeover Intelligence (CNAME detection and service error fingerprinting)
+- Multi-Tier Confidence Evaluation (HIGH, MEDIUM, LOW) enriched by HTTPX #2 metadata
+- Strict Candidate vs Confirmed Philosophy (disclaimer integrity, false positive suppression)
+- Future Nuclei Compatibility (structured candidate intelligence outputs)
 - Scan History Persistence (`results/<target>/history/<scan_id>/`)
 - Delta Change Detection (comparing current scan against previous scans)
 - Standalone, responsive HTML Dashboard (`report.html`) with zero external dependencies
-- Machine-readable structured JSON reports (`report.json`)
+- Machine-readable structured JSON reports (`report.json`, `patterns/pattern-results.json`, `patterns/pattern-summary.json`)
 - Comprehensive CLI commands (`history`, `compare`, `report`, `doctor`, `update`, `version`)
 - Per-scan logging (`logs/scan-<id>.log`) and `--no-color` mode
 - Linux amd64 and arm64 support
@@ -158,7 +162,54 @@ installation, PATH configuration, or per-tool knowledge is required.
 | 04    | Historical URL Discovery   | GAU            | `gau-urls.txt`, `gau/urls.txt` |
 | 05    | URL Processing             | Smart URL Core | `raw/`, `normalized/`, `deduplicated/`, `api/`, `javascript/`, `parameters/`, `clusters/`, `interesting/`, `priority/` |
 | 06    | URL Verification           | HTTPX #2       | `input-urls.txt`, `verified-urls.txt`, `httpx.jsonl`, `metadata.json` |
-| 07    | Pattern Analysis           | GF             | `xss.txt`, `sqli.txt`, `lfi.txt`, `ssrf.txt`, `redirect.txt`, `patterns/` |
+| 07    | Pattern Analysis           | GF             | `xss.txt`, `sqli.txt`, `lfi.txt`, `ssrf.txt`, `redirect.txt`, `patterns/`, 35+ pattern targets |
+
+---
+
+## Stage 07 — Advanced GF Pattern Intelligence Layer
+
+Reconpipeline expands traditional 5-pattern GF matching into a multi-category **Pattern Intelligence Layer** covering 12 distinct intelligence domains and 35+ specialized pattern definitions.
+
+### Intelligence Categories & Coverage
+
+| Category | Targets & Patterns | Security Focus |
+|---|---|---|
+| **Vulnerability Candidates** | `xss`, `sqli`, `lfi`, `ssrf`, `redirect`, `rfi`, `ssti`, `xxe`, `cmdi`, `traversal`, `crlf`, `proto-pollution`, `deserialization` | Injection parameter candidates, reflection points, path traversal sequences |
+| **API Intelligence** | `api-rest`, `api-graphql`, `api-swagger`, `api-websocket` | Versioned REST routes, GraphQL query endpoints, OpenAPI/Swagger schemas, WebSockets |
+| **Authentication Intelligence** | `auth-login`, `auth-reset`, `auth-mfa`, `auth-oauth`, `auth-register` | Login portals, password recovery, MFA checkpoints, OAuth/SSO callback flows |
+| **Authorization Candidates** | `idor-candidate` | Direct object reference parameters (`user_id`, `account_id`, `uuid`) across resource endpoints |
+| **Administrative Intelligence** | `admin` | Administrative dashboards, management consoles, superadmin control panels |
+| **Debug & Metrics Intelligence** | `debug`, `actuator` | Developer diagnostic tools, trace endpoints, Spring Boot Actuator & `/health`/`/metrics` |
+| **Sensitive File Intelligence** | `sensitive-env`, `sensitive-git`, `sensitive-sql`, `sensitive-log`, `sensitive-config` | `.env`, `.git/`, database dumps, log files, configuration artifacts (`web.config`, `config.json`) |
+| **Backup & Legacy Intelligence** | `backup`, `legacy` | Backup archives (`.bak`, `.zip`, `.tar.gz`, `~`), legacy and deprecated path routes |
+| **Secret & Credential Indicators** | `secret-token`, `secret-key` | Exposed session tokens, JWTs, API keys, and credential parameters in URLs |
+| **Cloud Infrastructure Intelligence** | `cloud-s3`, `cloud-azure`, `cloud-gcp`, `cloud-cloudfront` | AWS S3 buckets, Azure Blob storage, GCP/Firebase instances, CloudFront distributions |
+| **File Operations Intelligence** | `file-upload`, `file-download` | Upload receivers, multipart handlers, file export and document fetch routes |
+| **Subdomain Takeover Intelligence** | `takeover-candidates` | Dangling CNAME records with cloud/SaaS unclaimed service fingerprints |
+
+### Candidate vs. Confirmed Philosophy
+
+> **Strict Security Boundary**: Reconpipeline pattern matching strictly identifies **Security Candidates** and **Areas of Interest**. It **NEVER** claims a vulnerability is confirmed. All reports, JSON summaries, and dashboards carry explicit disclaimers ensuring responsible reporting.
+
+### Multi-Tier Confidence Evaluation
+
+Each candidate match is evaluated dynamically using Stage 06 (HTTPX #2) metadata and Stage 01/02 DNS/host state:
+- **HIGH Confidence**: Strong corroboration (e.g. Open Redirect with HTTP 302 and `Location` header; API endpoint with `application/json` content-type; sensitive file with HTTP 200; takeover with exact body fingerprint match).
+- **MEDIUM Confidence**: Plausible candidate on active HTTP 200 host, or CNAME error state without exact body signature.
+- **LOW Confidence**: Query parameter or pattern match without live HTTP corroboration or with mitigating context (e.g. XSS candidate in JSON response).
+
+### False Positive Suppression
+
+- **Static Asset Suppression**: URLs pointing to static web assets (`.css`, `.png`, `.jpg`, `.woff2`, `.svg`, etc.) are automatically excluded from parameter vulnerability fuzzing targets.
+- **Tracking Parameter Filtering**: Marketing noise (`utm_source`, `fbclid`, `gclid`, `_ga`) is filtered so analytics parameters do not trigger vulnerability matches unless accompanied by real parameters.
+
+### Structured Output Artifacts
+
+In addition to backward-compatible `.txt` files (`xss.txt`, `sqli.txt`, `lfi.txt`, `ssrf.txt`, `redirect.txt`), Stage 07 produces:
+- `patterns/pattern-results.json`: Rich structured metadata for every candidate match (URL, parameter, category, confidence, context, HTTP metadata).
+- `patterns/pattern-summary.json`: Aggregated metrics across categories, confidence distributions, and takeover statistics.
+- `patterns/takeover-candidates.json` & `takeover-candidates.txt`: Verified takeover candidate hosts with CNAME, service, status, and evidence.
+- `other-patterns.txt`: Summary index of all non-classic pattern candidate findings.
 
 ---
 

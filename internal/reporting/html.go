@@ -289,7 +289,16 @@ tr:hover td { background: rgba(255, 255, 255, 0.02); }
       <tr><td>SQL Injection (SQLi)</td><td><span class="pill pill-rose">` + formatCount(r.Counters.SQLiMatches) + `</span></td><td>Database parameter manipulation</td></tr>
       <tr><td>Local File Inclusion (LFI)</td><td><span class="pill pill-rose">` + formatCount(r.Counters.LFIMatches) + `</span></td><td>File path traversal parameters</td></tr>
       <tr><td>Server-Side Request Forgery (SSRF)</td><td><span class="pill pill-purple">` + formatCount(r.Counters.SSRFMatches) + `</span></td><td>Outbound URL and host parameters</td></tr>
-      <tr><td>Open Redirect</td><td><span class="pill pill-blue">` + formatCount(r.Counters.RedirectMatches) + `</span></td><td>Redirect and forward parameters</td></tr>
+      <tr><td>Open Redirect</td><td><span class="pill pill-blue">` + formatCount(r.Counters.RedirectMatches) + `</span></td><td>Redirect and forward parameters</td></tr>`)
+	if r.Counters.TotalCandidates > 0 {
+		sb.WriteString(`
+      <tr><td>Subdomain Takeovers</td><td><span class="pill pill-rose">` + formatCount(r.Counters.TakeoverCandidates) + `</span></td><td>Dangling DNS CNAME / unclaimed third-party services</td></tr>
+      <tr><td>API Intelligence</td><td><span class="pill pill-blue">` + formatCount(r.Counters.APICandidates) + `</span></td><td>REST, GraphQL, Swagger / OpenAPI endpoints</td></tr>
+      <tr><td>Authentication Portals</td><td><span class="pill pill-purple">` + formatCount(r.Counters.AuthCandidates) + `</span></td><td>Login, MFA, OAuth, SSO, password reset workflows</td></tr>
+      <tr><td>Administrative Consoles</td><td><span class="pill pill-amber">` + formatCount(r.Counters.AdminCandidates) + `</span></td><td>Admin, dashboard, internal control interfaces</td></tr>
+      <tr><td>Sensitive File Exposure</td><td><span class="pill pill-rose">` + formatCount(r.Counters.SensitiveFileCandidates) + `</span></td><td>.env, .git, database dumps, server configuration</td></tr>`)
+	}
+	sb.WriteString(`
     </table>
     <p style="font-size: 12px; color: var(--text-muted); margin-top: 12px;">Note: Pattern matches indicate potential areas of interest, not confirmed vulnerabilities.</p>
   </div>
