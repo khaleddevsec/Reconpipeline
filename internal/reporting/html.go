@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/frozeniceee/Reconpipeline/internal/comparison"
-	"github.com/frozeniceee/Reconpipeline/internal/version"
+	"github.com/khaleddevsec/Reconpipeline/internal/comparison"
+	"github.com/khaleddevsec/Reconpipeline/internal/version"
 )
 
 // GenerateHTML renders a self-contained, responsive HTML reconnaissance dashboard.
@@ -327,7 +327,7 @@ tr:hover td { background: rgba(255, 255, 255, 0.02); }
 
   <!-- Footer -->
   <div class="footer">
-    Reconpipeline ` + version.Version + ` &bull; Made by frozeniceee &bull; Generated on ` + time.Now().Format("2006-01-02 15:04:05") + `
+    Reconpipeline ` + version.Version + ` &bull; Made by khaleddevsec &bull; Generated on ` + time.Now().Format("2006-01-02 15:04:05") + `
   </div>
 
 </div>

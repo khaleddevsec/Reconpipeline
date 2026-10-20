@@ -3,7 +3,7 @@ package tests
 import (
 	"testing"
 
-	"github.com/frozeniceee/Reconpipeline/internal/scope"
+	"github.com/khaleddevsec/Reconpipeline/internal/scope"
 )
 
 func TestNormalise_BareDomain(t *testing.T) {

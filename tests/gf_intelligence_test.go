@@ -8,11 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frozeniceee/Reconpipeline/internal/config"
-	"github.com/frozeniceee/Reconpipeline/internal/intelligence/dns"
-	"github.com/frozeniceee/Reconpipeline/internal/tools/gf"
-	"github.com/frozeniceee/Reconpipeline/internal/tools/httpx"
-	"github.com/frozeniceee/Reconpipeline/internal/workspace"
+	"github.com/khaleddevsec/Reconpipeline/internal/config"
+	"github.com/khaleddevsec/Reconpipeline/internal/intelligence/dns"
+	"github.com/khaleddevsec/Reconpipeline/internal/tools/gf"
+	"github.com/khaleddevsec/Reconpipeline/internal/tools/httpx"
+	"github.com/khaleddevsec/Reconpipeline/internal/workspace"
 )
 
 func createTestGF(t *testing.T) *gf.Tool {

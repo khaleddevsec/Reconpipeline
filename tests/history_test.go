@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frozeniceee/Reconpipeline/internal/history"
-	"github.com/frozeniceee/Reconpipeline/internal/pipeline"
+	"github.com/khaleddevsec/Reconpipeline/internal/history"
+	"github.com/khaleddevsec/Reconpipeline/internal/pipeline"
 )
 
 func TestGenerateScanID(t *testing.T) {

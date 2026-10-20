@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/frozeniceee/Reconpipeline/internal/comparison"
-	"github.com/frozeniceee/Reconpipeline/internal/pipeline"
-	"github.com/frozeniceee/Reconpipeline/internal/version"
+	"github.com/khaleddevsec/Reconpipeline/internal/comparison"
+	"github.com/khaleddevsec/Reconpipeline/internal/pipeline"
+	"github.com/khaleddevsec/Reconpipeline/internal/version"
 )
 
 // Report holds all data for the final scan report.

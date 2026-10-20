@@ -11,8 +11,8 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/frozeniceee/Reconpipeline/internal/logging"
-	"github.com/frozeniceee/Reconpipeline/internal/workspace"
+	"github.com/khaleddevsec/Reconpipeline/internal/logging"
+	"github.com/khaleddevsec/Reconpipeline/internal/workspace"
 )
 
 // Result holds the outcome of a subprocess execution.

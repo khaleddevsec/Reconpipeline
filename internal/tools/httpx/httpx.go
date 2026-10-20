@@ -9,8 +9,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/frozeniceee/Reconpipeline/internal/executor"
-	"github.com/frozeniceee/Reconpipeline/internal/workspace"
+	"github.com/khaleddevsec/Reconpipeline/internal/executor"
+	"github.com/khaleddevsec/Reconpipeline/internal/workspace"
 )
 
 const toolName = "httpx"

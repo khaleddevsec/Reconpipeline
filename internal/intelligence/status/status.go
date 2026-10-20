@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/frozeniceee/Reconpipeline/internal/tools/httpx"
+	"github.com/khaleddevsec/Reconpipeline/internal/tools/httpx"
 )
 
 // Summary holds status code distribution and grouped URLs.

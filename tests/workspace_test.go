@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/frozeniceee/Reconpipeline/internal/config"
-	"github.com/frozeniceee/Reconpipeline/internal/workspace"
+	"github.com/khaleddevsec/Reconpipeline/internal/config"
+	"github.com/khaleddevsec/Reconpipeline/internal/workspace"
 )
 
 func TestWorkspace_Init(t *testing.T) {

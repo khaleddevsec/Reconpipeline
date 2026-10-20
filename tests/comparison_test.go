@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frozeniceee/Reconpipeline/internal/comparison"
-	"github.com/frozeniceee/Reconpipeline/internal/history"
+	"github.com/khaleddevsec/Reconpipeline/internal/comparison"
+	"github.com/khaleddevsec/Reconpipeline/internal/history"
 )
 
 func TestComparison_FirstScan(t *testing.T) {

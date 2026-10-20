@@ -6,13 +6,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/frozeniceee/Reconpipeline/internal/config"
-	"github.com/frozeniceee/Reconpipeline/internal/intelligence/urlengine"
-	"github.com/frozeniceee/Reconpipeline/internal/pipeline"
-	"github.com/frozeniceee/Reconpipeline/internal/scope"
-	"github.com/frozeniceee/Reconpipeline/internal/tools/httpx"
-	"github.com/frozeniceee/Reconpipeline/internal/urlprocessor"
-	"github.com/frozeniceee/Reconpipeline/internal/workspace"
+	"github.com/khaleddevsec/Reconpipeline/internal/config"
+	"github.com/khaleddevsec/Reconpipeline/internal/intelligence/urlengine"
+	"github.com/khaleddevsec/Reconpipeline/internal/pipeline"
+	"github.com/khaleddevsec/Reconpipeline/internal/scope"
+	"github.com/khaleddevsec/Reconpipeline/internal/tools/httpx"
+	"github.com/khaleddevsec/Reconpipeline/internal/urlprocessor"
+	"github.com/khaleddevsec/Reconpipeline/internal/workspace"
 )
 
 func TestSelectForVerification_ScopeAndStaticFiltering(t *testing.T) {

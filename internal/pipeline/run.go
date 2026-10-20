@@ -8,8 +8,8 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/frozeniceee/Reconpipeline/internal/version"
-	"github.com/frozeniceee/Reconpipeline/internal/workspace"
+	"github.com/khaleddevsec/Reconpipeline/internal/version"
+	"github.com/khaleddevsec/Reconpipeline/internal/workspace"
 )
 
 // StageStatus represents the completion state of a pipeline stage.

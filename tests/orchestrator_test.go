@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/frozeniceee/Reconpipeline/internal/pipeline"
-	"github.com/frozeniceee/Reconpipeline/internal/workspace"
+	"github.com/khaleddevsec/Reconpipeline/internal/pipeline"
+	"github.com/khaleddevsec/Reconpipeline/internal/workspace"
 )
 
 func TestOrchestrator_LifecycleStates(t *testing.T) {

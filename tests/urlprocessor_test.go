@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frozeniceee/Reconpipeline/internal/urlprocessor"
+	"github.com/khaleddevsec/Reconpipeline/internal/urlprocessor"
 )
 
 func TestProcess_Merge(t *testing.T) {

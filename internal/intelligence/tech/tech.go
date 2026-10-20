@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/frozeniceee/Reconpipeline/internal/tools/httpx"
+	"github.com/khaleddevsec/Reconpipeline/internal/tools/httpx"
 )
 
 // TechGroup represents a technology grouping with associated host URLs.

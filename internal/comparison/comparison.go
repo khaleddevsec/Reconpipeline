@@ -10,8 +10,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/frozeniceee/Reconpipeline/internal/history"
-	"github.com/frozeniceee/Reconpipeline/internal/tools/httpx"
+	"github.com/khaleddevsec/Reconpipeline/internal/history"
+	"github.com/khaleddevsec/Reconpipeline/internal/tools/httpx"
 )
 
 // AssetChange represents a changed observation (status code, title, server) for a live host.

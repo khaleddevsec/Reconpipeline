@@ -1,4 +1,4 @@
-module github.com/frozeniceee/Reconpipeline
+module github.com/khaleddevsec/Reconpipeline
 
 go 1.21
 

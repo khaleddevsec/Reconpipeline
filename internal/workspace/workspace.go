@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/frozeniceee/Reconpipeline/internal/config"
+	"github.com/khaleddevsec/Reconpipeline/internal/config"
 )
 
 // Manager manages the workspace directory structure.

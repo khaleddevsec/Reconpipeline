@@ -15,7 +15,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/frozeniceee/Reconpipeline/internal/scope"
+	"github.com/khaleddevsec/Reconpipeline/internal/scope"
 )
 
 // PriorityLevel defines the scored priority of an endpoint.

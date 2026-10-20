@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/frozeniceee/Reconpipeline/internal/executor"
-	"github.com/frozeniceee/Reconpipeline/internal/scope"
-	"github.com/frozeniceee/Reconpipeline/internal/workspace"
+	"github.com/khaleddevsec/Reconpipeline/internal/executor"
+	"github.com/khaleddevsec/Reconpipeline/internal/scope"
+	"github.com/khaleddevsec/Reconpipeline/internal/workspace"
 )
 
 const toolName = "gau"

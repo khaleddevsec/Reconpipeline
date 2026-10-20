@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/frozeniceee/Reconpipeline/internal/tools/httpx"
+	"github.com/khaleddevsec/Reconpipeline/internal/tools/httpx"
 )
 
 // Engine runs advanced pattern analysis and intelligence scoring.

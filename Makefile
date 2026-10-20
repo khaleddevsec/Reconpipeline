@@ -1,10 +1,10 @@
 # ============================================================
 # Reconpipeline Makefile
-# Made by frozeniceee
+# Made by khaleddevsec
 # ============================================================
 
 VERSION := v2.6.0
-MODULE  := github.com/frozeniceee/Reconpipeline
+MODULE  := github.com/khaleddevsec/Reconpipeline
 LDFLAGS := -s -w -X $(MODULE)/internal/version.Version=$(VERSION)
 
 # Detect Go binary (prefer /usr/local/go/bin/go)

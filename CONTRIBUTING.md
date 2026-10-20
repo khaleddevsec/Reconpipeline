@@ -120,7 +120,7 @@ Or directly:
 
 ```bash
 go build \
-  -ldflags "-s -w -X github.com/frozeniceee/Reconpipeline/internal/version.Version=v2.5.0" \
+  -ldflags "-s -w -X github.com/khaleddevsec/Reconpipeline/internal/version.Version=v2.5.0" \
   -o dist/reconpipeline \
   ./cmd/reconpipeline/
 ```
@@ -159,7 +159,7 @@ When reporting a bug, include:
 The version is injected at build time by the release workflow:
 
 ```
--X github.com/frozeniceee/Reconpipeline/internal/version.Version=v2.5.1
+-X github.com/khaleddevsec/Reconpipeline/internal/version.Version=v2.5.1
 ```
 
 ---

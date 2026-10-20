@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # Reconpipeline Installer
-# Made by frozeniceee
+# Made by khaleddevsec
 # Version: v2.6.0
 # ============================================================
 set -euo pipefail
@@ -32,7 +32,7 @@ step() {
 # ─── Banner ──────────────────────────────────────────────────────────────────
 echo ""
 echo "Reconpipeline Installer"
-echo "Made by frozeniceee"
+echo "Made by khaleddevsec"
 echo "Version: ${RECONPIPELINE_VERSION}"
 echo ""
 echo "Checking system..."
@@ -105,7 +105,7 @@ cd "$SCRIPT_DIR"
 # Download/update module dependencies.
 "$GO_BIN" mod download -x &>/dev/null 2>&1 || "$GO_BIN" mod tidy &>/dev/null 2>&1 || true
 
-LDFLAGS="-s -w -X github.com/frozeniceee/Reconpipeline/internal/version.Version=${RECONPIPELINE_VERSION}"
+LDFLAGS="-s -w -X github.com/khaleddevsec/Reconpipeline/internal/version.Version=${RECONPIPELINE_VERSION}"
 
 "$GO_BIN" build \
     -ldflags "$LDFLAGS" \

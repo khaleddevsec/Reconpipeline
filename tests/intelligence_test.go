@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/frozeniceee/Reconpipeline/internal/intelligence/asset"
-	"github.com/frozeniceee/Reconpipeline/internal/intelligence/dns"
-	"github.com/frozeniceee/Reconpipeline/internal/intelligence/status"
-	"github.com/frozeniceee/Reconpipeline/internal/intelligence/tech"
-	"github.com/frozeniceee/Reconpipeline/internal/intelligence/urlengine"
+	"github.com/khaleddevsec/Reconpipeline/internal/intelligence/asset"
+	"github.com/khaleddevsec/Reconpipeline/internal/intelligence/dns"
+	"github.com/khaleddevsec/Reconpipeline/internal/intelligence/status"
+	"github.com/khaleddevsec/Reconpipeline/internal/intelligence/tech"
+	"github.com/khaleddevsec/Reconpipeline/internal/intelligence/urlengine"
 )
 
 func TestAssetClassifier(t *testing.T) {

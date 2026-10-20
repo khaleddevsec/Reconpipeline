@@ -10,7 +10,7 @@
 ```
 
 Reconpipeline  
-Made by frozeniceee  
+Made by khaleddevsec  
 Version: v2.8.0  
 Release: V2.8 — Advanced GF Pattern Intelligence Layer
 
@@ -221,7 +221,7 @@ In addition to backward-compatible `.txt` files (`xss.txt`, `sqli.txt`, `lfi.txt
 cd /root
 mkdir Reconpipeline
 cd Reconpipeline
-git clone https://github.com/frozeniceee/Reconpipeline.git .
+git clone https://github.com/khaleddevsec/Reconpipeline.git .
 chmod +x install.sh
 ./install.sh
 ```
@@ -229,7 +229,7 @@ chmod +x install.sh
 ### One-Line Command
 
 ```bash
-cd /root && mkdir -p Reconpipeline && cd Reconpipeline && git clone https://github.com/frozeniceee/Reconpipeline.git . && chmod +x install.sh && ./install.sh
+cd /root && mkdir -p Reconpipeline && cd Reconpipeline && git clone https://github.com/khaleddevsec/Reconpipeline.git . && chmod +x install.sh && ./install.sh
 ```
 
 ---

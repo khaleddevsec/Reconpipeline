@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/frozeniceee/Reconpipeline/internal/pipeline"
-	"github.com/frozeniceee/Reconpipeline/internal/version"
+	"github.com/khaleddevsec/Reconpipeline/internal/pipeline"
+	"github.com/khaleddevsec/Reconpipeline/internal/version"
 )
 
 // ScanMeta represents the structured metadata of a recorded scan.

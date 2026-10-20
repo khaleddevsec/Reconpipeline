@@ -13,17 +13,17 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/frozeniceee/Reconpipeline/internal/comparison"
-	"github.com/frozeniceee/Reconpipeline/internal/config"
-	"github.com/frozeniceee/Reconpipeline/internal/dependencies"
-	"github.com/frozeniceee/Reconpipeline/internal/history"
-	"github.com/frozeniceee/Reconpipeline/internal/logging"
-	"github.com/frozeniceee/Reconpipeline/internal/pipeline"
-	"github.com/frozeniceee/Reconpipeline/internal/reporting"
-	"github.com/frozeniceee/Reconpipeline/internal/scope"
-	"github.com/frozeniceee/Reconpipeline/internal/updater"
-	"github.com/frozeniceee/Reconpipeline/internal/version"
-	"github.com/frozeniceee/Reconpipeline/internal/workspace"
+	"github.com/khaleddevsec/Reconpipeline/internal/comparison"
+	"github.com/khaleddevsec/Reconpipeline/internal/config"
+	"github.com/khaleddevsec/Reconpipeline/internal/dependencies"
+	"github.com/khaleddevsec/Reconpipeline/internal/history"
+	"github.com/khaleddevsec/Reconpipeline/internal/logging"
+	"github.com/khaleddevsec/Reconpipeline/internal/pipeline"
+	"github.com/khaleddevsec/Reconpipeline/internal/reporting"
+	"github.com/khaleddevsec/Reconpipeline/internal/scope"
+	"github.com/khaleddevsec/Reconpipeline/internal/updater"
+	"github.com/khaleddevsec/Reconpipeline/internal/version"
+	"github.com/khaleddevsec/Reconpipeline/internal/workspace"
 )
 
 // logo is the ASCII art banner.
@@ -424,7 +424,7 @@ func printBanner() {
 	fmt.Print(logo)
 	fmt.Println()
 	fmt.Println("Reconpipeline")
-	fmt.Println("Made by frozeniceee")
+	fmt.Println("Made by khaleddevsec")
 	vStatus := updater.GetVersionStatus(context.Background())
 	fmt.Printf("Version: %s\n", vStatus)
 	fmt.Println()
@@ -462,7 +462,7 @@ Options:
 
 func versionString() string {
 	vStatus := updater.GetVersionStatus(context.Background())
-	return fmt.Sprintf("Reconpipeline %s\nMade by frozeniceee", vStatus)
+	return fmt.Sprintf("Reconpipeline %s\nMade by khaleddevsec", vStatus)
 }
 
 func modeLabel(mode string) string {
@@ -581,7 +581,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 
 	result, err := updater.Check(ctx)
 	if err != nil {
-		return fmt.Errorf("update check failed: %w\n\nEnsure https://github.com/frozeniceee/Reconpipeline has releases.", err)
+		return fmt.Errorf("update check failed: %w\n\nEnsure https://github.com/khaleddevsec/Reconpipeline has releases.", err)
 	}
 
 	fmt.Printf("Current version : %s\n", result.CurrentVersion)

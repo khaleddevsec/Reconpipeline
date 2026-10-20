@@ -11,8 +11,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/frozeniceee/Reconpipeline/internal/intelligence/dns"
-	"github.com/frozeniceee/Reconpipeline/internal/tools/httpx"
+	"github.com/khaleddevsec/Reconpipeline/internal/intelligence/dns"
+	"github.com/khaleddevsec/Reconpipeline/internal/tools/httpx"
 )
 
 // TakeoverSignature defines fingerprint characteristics for potentially vulnerable third-party services.

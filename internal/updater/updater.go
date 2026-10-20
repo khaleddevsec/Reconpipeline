@@ -14,11 +14,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/frozeniceee/Reconpipeline/internal/version"
+	"github.com/khaleddevsec/Reconpipeline/internal/version"
 )
 
 const (
-	githubOwner     = "frozeniceee"
+	githubOwner     = "khaleddevsec"
 	githubRepo      = "Reconpipeline"
 	githubAPIBase   = "https://api.github.com"
 	downloadTimeout = 5 * time.Minute

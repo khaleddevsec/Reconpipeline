@@ -9,7 +9,7 @@ import (
 	"os/exec"
 	"regexp"
 
-	"github.com/frozeniceee/Reconpipeline/internal/workspace"
+	"github.com/khaleddevsec/Reconpipeline/internal/workspace"
 )
 
 const toolName = "gf"

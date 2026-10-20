@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frozeniceee/Reconpipeline/internal/pipeline"
-	"github.com/frozeniceee/Reconpipeline/internal/reporting"
+	"github.com/khaleddevsec/Reconpipeline/internal/pipeline"
+	"github.com/khaleddevsec/Reconpipeline/internal/reporting"
 )
 
 func TestGenerate_CreatesFiles(t *testing.T) {

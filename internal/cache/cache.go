@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/frozeniceee/Reconpipeline/internal/version"
+	"github.com/khaleddevsec/Reconpipeline/internal/version"
 )
 
 // Entry represents metadata about a cached stage output.

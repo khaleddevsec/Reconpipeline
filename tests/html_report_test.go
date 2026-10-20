@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frozeniceee/Reconpipeline/internal/comparison"
-	"github.com/frozeniceee/Reconpipeline/internal/pipeline"
-	"github.com/frozeniceee/Reconpipeline/internal/reporting"
+	"github.com/khaleddevsec/Reconpipeline/internal/comparison"
+	"github.com/khaleddevsec/Reconpipeline/internal/pipeline"
+	"github.com/khaleddevsec/Reconpipeline/internal/reporting"
 )
 
 func TestHTMLReport_Generation(t *testing.T) {

@@ -18,10 +18,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/frozeniceee/Reconpipeline/internal/config"
-	"github.com/frozeniceee/Reconpipeline/internal/logging"
-	"github.com/frozeniceee/Reconpipeline/internal/tools/gf"
-	"github.com/frozeniceee/Reconpipeline/internal/workspace"
+	"github.com/khaleddevsec/Reconpipeline/internal/config"
+	"github.com/khaleddevsec/Reconpipeline/internal/logging"
+	"github.com/khaleddevsec/Reconpipeline/internal/tools/gf"
+	"github.com/khaleddevsec/Reconpipeline/internal/workspace"
 )
 
 const (

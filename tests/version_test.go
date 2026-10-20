@@ -3,8 +3,8 @@ package tests
 import (
 	"testing"
 
-	"github.com/frozeniceee/Reconpipeline/internal/updater"
-	"github.com/frozeniceee/Reconpipeline/internal/version"
+	"github.com/khaleddevsec/Reconpipeline/internal/updater"
+	"github.com/khaleddevsec/Reconpipeline/internal/version"
 )
 
 func TestVersion_NotEmpty(t *testing.T) {

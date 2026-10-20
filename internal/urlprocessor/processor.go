@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/frozeniceee/Reconpipeline/internal/intelligence/urlengine"
-	"github.com/frozeniceee/Reconpipeline/internal/scope"
+	"github.com/khaleddevsec/Reconpipeline/internal/intelligence/urlengine"
+	"github.com/khaleddevsec/Reconpipeline/internal/scope"
 )
 
 // SelectForVerification wraps urlengine.SelectForVerification.

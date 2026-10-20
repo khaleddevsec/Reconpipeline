@@ -1,7 +1,7 @@
 // Package version defines the application version.
 // The Version variable is injected at build time via ldflags:
 //
-//	go build -ldflags "-X github.com/frozeniceee/Reconpipeline/internal/version.Version=v2.6.0"
+//	go build -ldflags "-X github.com/khaleddevsec/Reconpipeline/internal/version.Version=v2.6.0"
 package version
 
 // Version is the current semantic version of Reconpipeline.

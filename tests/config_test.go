@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frozeniceee/Reconpipeline/internal/config"
+	"github.com/khaleddevsec/Reconpipeline/internal/config"
 )
 
 func TestConfig_Defaults(t *testing.T) {
