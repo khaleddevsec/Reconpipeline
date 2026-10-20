@@ -15,6 +15,12 @@ func TestConfig_Defaults(t *testing.T) {
 	if cfg.UserSettings.DefaultThreads != 10 {
 		t.Errorf("expected default threads 10, got %d", cfg.UserSettings.DefaultThreads)
 	}
+	if cfg.ResultsDir != "ReconResults" {
+		t.Errorf("expected default ResultsDir 'ReconResults', got %q", cfg.ResultsDir)
+	}
+	if cfg.UserSettings.DefaultOutput != "ReconResults" {
+		t.Errorf("expected default output 'ReconResults', got %q", cfg.UserSettings.DefaultOutput)
+	}
 	if !cfg.UserSettings.CacheEnabled {
 		t.Error("expected cache to be enabled by default")
 	}

@@ -51,7 +51,7 @@ fmt:
 ## clean: Remove build artifacts
 clean:
 	@echo "Cleaning..."
-	@rm -rf $(OUTDIR)
+	@rm -rf $(OUTDIR) ReconResults results
 
 ## release: Build release binaries for linux/amd64 and linux/arm64
 release:

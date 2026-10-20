@@ -654,7 +654,7 @@ func showDryRun(target *scope.Target, mode, output string, ws *workspace.Manager
 
 	outRoot := output
 	if outRoot == "" {
-		outRoot = "results"
+		outRoot = cfg.ResultsDir
 	}
 	fmt.Printf("Output Destination:\n\n%s/%s/\n\n", outRoot, target.Domain)
 	fmt.Println("Dry run complete.")

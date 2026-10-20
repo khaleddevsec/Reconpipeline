@@ -67,7 +67,7 @@ installation, PATH configuration, or per-tool knowledge is required.
 - Multi-Tier Confidence Evaluation (HIGH, MEDIUM, LOW) enriched by HTTPX #2 metadata
 - Strict Candidate vs Confirmed Philosophy (disclaimer integrity, false positive suppression)
 - Future Nuclei Compatibility (structured candidate intelligence outputs)
-- Scan History Persistence (`results/<target>/history/<scan_id>/`)
+- Scan History Persistence (`ReconResults/<target>/history/<scan_id>/`)
 - Delta Change Detection (comparing current scan against previous scans)
 - Standalone, responsive HTML Dashboard (`report.html`) with zero external dependencies
 - Machine-readable structured JSON reports (`report.json`, `patterns/pattern-results.json`, `patterns/pattern-summary.json`)
@@ -337,7 +337,7 @@ can be defined in `~/.config/reconpipeline/config.yaml` or `~/.reconpipeline/con
 default_profile: full
 default_threads: 10
 default_timeout: 30m
-default_output: results
+default_output: ReconResults
 cache_enabled: true
 log_level: info
 ```
@@ -353,7 +353,7 @@ log_level: info
 ## Output Structure
 
 ```
-results/
+ReconResults/
 └── example.com/
     ├── 01-subdomain-discovery/
     │   ├── subdomains.txt
