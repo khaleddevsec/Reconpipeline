@@ -19,6 +19,11 @@ func SelectForVerification(uniqueURLs []string, target *scope.Target, maxURLs in
 	return urlengine.SelectForVerification(uniqueURLs, target, maxURLs)
 }
 
+// SelectForVerificationWithPolicy wraps urlengine.SelectForVerificationWithPolicy.
+func SelectForVerificationWithPolicy(uniqueURLs []string, pol *scope.Policy, maxURLs int) []string {
+	return urlengine.SelectForVerificationWithPolicy(uniqueURLs, pol, maxURLs)
+}
+
 // IsStaticAsset wraps urlengine.IsStaticAsset.
 func IsStaticAsset(raw string) bool {
 	return urlengine.IsStaticAsset(raw)

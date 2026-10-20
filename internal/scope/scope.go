@@ -3,10 +3,14 @@
 package scope
 
 import (
+	"context"
 	"fmt"
+	"net"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // validDomainRE matches a safe, normalised domain name.
@@ -56,8 +60,6 @@ func Normalise(input string) (*Target, error) {
 		return nil, fmt.Errorf("could not determine host from target %q", input)
 	}
 
-	// Strip www. prefix for the root domain comparison, but keep host as-is.
-	// The domain used for scope is the deepest registrable part.
 	t.Domain = strings.ToLower(host)
 
 	if err := validateDomain(t.Domain); err != nil {
@@ -65,6 +67,11 @@ func Normalise(input string) (*Target, error) {
 	}
 
 	return t, nil
+}
+
+// Normalize is an alias for Normalise for American English compatibility.
+func Normalize(input string) (*Target, error) {
+	return Normalise(input)
 }
 
 // validateDomain checks that a domain is safe to use as a scan target.
@@ -88,11 +95,128 @@ func isIPAddress(s string) bool {
 	return ipv4RE.MatchString(s) || strings.Contains(s, ":")
 }
 
-// InScope returns true if the given URL is within the target's domain scope.
-// Only subdomains of the root domain are considered in-scope.
-func InScope(rawURL string, target *Target) bool {
+// Policy encapsulates all authorization and scoping rules for a scan.
+type Policy struct {
+	Target          *Target
+	AllowedDomains  []string
+	ExcludedHosts   []string
+	ExcludedCIDRs   []*net.IPNet
+	AllowedPorts    []int
+	AllowPrivateIPs bool
+}
+
+// NewPolicy creates a Policy with default restrictions (private IPs disallowed).
+func NewPolicy(target *Target, exclusions ...string) *Policy {
+	p := &Policy{
+		Target:          target,
+		AllowPrivateIPs: false,
+	}
+	if target != nil && target.Domain != "" {
+		p.AllowedDomains = []string{target.Domain}
+	}
+	for _, excl := range exclusions {
+		excl = strings.TrimSpace(strings.ToLower(excl))
+		if excl == "" {
+			continue
+		}
+		if _, ipNet, err := net.ParseCIDR(excl); err == nil {
+			p.ExcludedCIDRs = append(p.ExcludedCIDRs, ipNet)
+		} else {
+			p.ExcludedHosts = append(p.ExcludedHosts, excl)
+		}
+	}
+	return p
+}
+
+// IsPrivateOrRestrictedIP returns true if the IP is loopback, link-local, private,
+// multicast, unspecified, or cloud metadata (169.254.169.254).
+func IsPrivateOrRestrictedIP(ip net.IP) bool {
+	if ip == nil {
+		return true
+	}
+	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() || ip.IsPrivate() {
+		return true
+	}
+	if ip.Equal(net.ParseIP("169.254.169.254")) {
+		return true
+	}
+	if ip4 := ip.To4(); ip4 != nil {
+		if ip4[0] == 0 || ip4[0] == 255 {
+			return true
+		}
+	}
+	return false
+}
+
+// IsHostInScope evaluates whether a hostname is authorized.
+func (p *Policy) IsHostInScope(host string) bool {
+	host = strings.TrimSpace(strings.ToLower(host))
+	host = strings.TrimSuffix(host, ".")
+	if host == "" {
+		return false
+	}
+
+	// Strip port if present
+	if h, portStr, err := net.SplitHostPort(host); err == nil {
+		host = h
+		if len(p.AllowedPorts) > 0 {
+			if port, pErr := strconv.Atoi(portStr); pErr == nil {
+				portAllowed := false
+				for _, ap := range p.AllowedPorts {
+					if ap == port {
+						portAllowed = true
+						break
+					}
+				}
+				if !portAllowed {
+					return false
+				}
+			}
+		}
+	}
+
+	// Reject IP address targets if private/restricted
+	if ip := net.ParseIP(host); ip != nil {
+		if !p.AllowPrivateIPs && IsPrivateOrRestrictedIP(ip) {
+			return false
+		}
+		for _, cidr := range p.ExcludedCIDRs {
+			if cidr.Contains(ip) {
+				return false
+			}
+		}
+		return false
+	}
+
+	// Check exclusion list (exact match or subdomain of excluded host)
+	for _, excl := range p.ExcludedHosts {
+		if host == excl || strings.HasSuffix(host, "."+excl) {
+			return false
+		}
+	}
+
+	// Check permitted domains
+	for _, domain := range p.AllowedDomains {
+		if host == domain || strings.HasSuffix(host, "."+domain) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// IsURLInScope checks whether a URL is valid, uses http/https, and matches the authorized scope.
+func (p *Policy) IsURLInScope(rawURL string) bool {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return false
+	}
 	u, err := url.Parse(rawURL)
 	if err != nil {
+		return false
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "http" && scheme != "https" {
 		return false
 	}
 	host := strings.ToLower(u.Hostname())
@@ -100,8 +224,78 @@ func InScope(rawURL string, target *Target) bool {
 		return false
 	}
 
-	rootDomain := target.Domain
-	return host == rootDomain || strings.HasSuffix(host, "."+rootDomain)
+	// Port check if present in URL
+	if u.Port() != "" && len(p.AllowedPorts) > 0 {
+		if port, err := strconv.Atoi(u.Port()); err == nil {
+			allowed := false
+			for _, ap := range p.AllowedPorts {
+				if ap == port {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				return false
+			}
+		}
+	}
+
+	return p.IsHostInScope(host)
+}
+
+// IsIPAllowed validates if an IP address is permissible according to policy.
+func (p *Policy) IsIPAllowed(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	if !p.AllowPrivateIPs && IsPrivateOrRestrictedIP(ip) {
+		return false
+	}
+	for _, cidr := range p.ExcludedCIDRs {
+		if cidr.Contains(ip) {
+			return false
+		}
+	}
+	return true
+}
+
+// ValidateHostResolution performs a DNS lookup to ensure the host does not resolve to forbidden IPs.
+func (p *Policy) ValidateHostResolution(ctx context.Context, host string) ([]string, error) {
+	host = strings.TrimSpace(strings.ToLower(host))
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+
+	if !p.IsHostInScope(host) {
+		return nil, fmt.Errorf("host %q is out of scope", host)
+	}
+
+	lookupCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	ips, err := net.DefaultResolver.LookupIP(lookupCtx, "ip", host)
+	if err != nil {
+		return nil, err
+	}
+
+	var allowedIPs []string
+	for _, ip := range ips {
+		if !p.IsIPAllowed(ip) {
+			return nil, fmt.Errorf("host %q resolves to restricted IP %s", host, ip.String())
+		}
+		allowedIPs = append(allowedIPs, ip.String())
+	}
+	return allowedIPs, nil
+}
+
+// InScope returns true if the given URL is within the target's domain scope.
+// Only subdomains of the root domain are considered in-scope.
+func InScope(rawURL string, target *Target) bool {
+	if target == nil {
+		return false
+	}
+	p := NewPolicy(target)
+	return p.IsURLInScope(rawURL)
 }
 
 // SafeFilename converts a domain to a safe directory/filename component.

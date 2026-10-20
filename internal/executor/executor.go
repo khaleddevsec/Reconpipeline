@@ -155,7 +155,7 @@ func RunToFile(ctx context.Context, binaryPath string, args []string, outPath st
 	_ = tmpFile.Sync()
 	_ = tmpFile.Close()
 
-	if res.ExitCode == 0 || workspace.Exists(tmpName) {
+	if res.ExitCode == 0 && res.Error == nil {
 		if data, readErr := os.ReadFile(tmpName); readErr == nil && len(data) > 0 {
 			_ = workspace.WriteFileAtomic(outPath, data, 0640)
 		}

@@ -79,3 +79,58 @@ func TestHTMLReport_Generation(t *testing.T) {
 		t.Error("HTML report missing status change detail")
 	}
 }
+
+func TestHTMLReport_XSSPrevention(t *testing.T) {
+	now := time.Now()
+	rep := &reporting.Report{
+		ScanID:      "scan-<script>alert('xss-scanid')</script>",
+		Target:      "test.com\"><script>alert('xss-target')</script>",
+		Version:     "v2.5.2",
+		Mode:        "full",
+		StartTime:   now,
+		StateStatus: "completed",
+	}
+
+	comp := &comparison.Result{
+		HasPrevious:    true,
+		PreviousScanID: "scan-prev<img src=x onerror=alert('prev')>",
+		PreviousTime:   "2026-08-26 12:00:00",
+		ChangedAssets: []comparison.AssetChange{
+			{
+				URL:       "https://test.com/login?redirect=<script>alert('url')</script>",
+				OldStatus: 200,
+				NewStatus: 200,
+				OldTitle:  "<title><script>alert('old-title')</script></title>",
+				NewTitle:  "<svg/onload=alert('new-title')>",
+				OldServer: "nginx/<script>alert('old-srv')</script>",
+				NewServer: "Apache/<script>alert('new-srv')</script>",
+			},
+		},
+	}
+
+	htmlContent := reporting.GenerateHTML(rep, comp)
+
+	dangerousPayloads := []string{
+		"<script>alert('xss-scanid')</script>",
+		"<script>alert('xss-target')</script>",
+		"<img src=x onerror=alert('prev')>",
+		"<script>alert('old-title')</script>",
+		"<svg/onload=alert('new-title')>",
+		"<script>alert('old-srv')</script>",
+		"<script>alert('new-srv')</script>",
+	}
+
+	for _, payload := range dangerousPayloads {
+		if strings.Contains(htmlContent, payload) {
+			t.Errorf("Raw unescaped XSS payload found in HTML report: %s", payload)
+		}
+	}
+
+	// Verify properly escaped entity representations
+	if !strings.Contains(htmlContent, "&lt;script&gt;alert(&#39;old-title&#39;)&lt;/script&gt;") {
+		t.Error("Expected escaped script tags in title change")
+	}
+	if !strings.Contains(htmlContent, "&lt;svg/onload=alert(&#39;new-title&#39;)&gt;") {
+		t.Error("Expected escaped svg tag in new title")
+	}
+}

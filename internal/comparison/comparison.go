@@ -27,20 +27,22 @@ type AssetChange struct {
 
 // Result holds the detailed diff and change counts between two scans.
 type Result struct {
-	HasPrevious       bool          `json:"has_previous"`
-	PreviousScanID    string        `json:"previous_scan_id,omitempty"`
-	CurrentScanID     string        `json:"current_scan_id,omitempty"`
-	PreviousTime      string        `json:"previous_time,omitempty"`
-	CurrentTime       string        `json:"current_time,omitempty"`
-	NewSubdomains     []string      `json:"new_subdomains,omitempty"`
-	RemovedSubdomains []string      `json:"removed_subdomains,omitempty"`
-	NewHosts          []string      `json:"new_hosts,omitempty"`
-	RemovedHosts      []string      `json:"removed_hosts,omitempty"`
-	NewURLs           []string      `json:"new_urls,omitempty"`
-	RemovedURLs       []string      `json:"removed_urls,omitempty"`
-	NewAPIs           []string      `json:"new_apis,omitempty"`
-	NewJS             []string      `json:"new_js,omitempty"`
-	ChangedAssets     []AssetChange `json:"changed_assets,omitempty"`
+	HasPrevious           bool          `json:"has_previous"`
+	PreviousScanID        string        `json:"previous_scan_id,omitempty"`
+	CurrentScanID         string        `json:"current_scan_id,omitempty"`
+	PreviousTime          string        `json:"previous_time,omitempty"`
+	CurrentTime           string        `json:"current_time,omitempty"`
+	IsIncompleteScan      bool          `json:"is_incomplete_scan"`
+	IncompleteScanWarning string        `json:"incomplete_scan_warning,omitempty"`
+	NewSubdomains         []string      `json:"new_subdomains,omitempty"`
+	RemovedSubdomains     []string      `json:"removed_subdomains,omitempty"`
+	NewHosts              []string      `json:"new_hosts,omitempty"`
+	RemovedHosts          []string      `json:"removed_hosts,omitempty"`
+	NewURLs               []string      `json:"new_urls,omitempty"`
+	RemovedURLs           []string      `json:"removed_urls,omitempty"`
+	NewAPIs               []string      `json:"new_apis,omitempty"`
+	NewJS                 []string      `json:"new_js,omitempty"`
+	ChangedAssets         []AssetChange `json:"changed_assets,omitempty"`
 }
 
 // Engine performs delta analysis between scan directories.
@@ -76,6 +78,11 @@ func (e *Engine) CompareScans(prevScanDir, currScanDir, targetDir string, prevMe
 		CurrentScanID:  currMeta.ScanID,
 		PreviousTime:   history.FormatTime(prevMeta.StartTime),
 		CurrentTime:    history.FormatTime(currMeta.StartTime),
+	}
+
+	if currMeta != nil && currMeta.Status != "completed" {
+		res.IsIncompleteScan = true
+		res.IncompleteScanWarning = fmt.Sprintf("Current scan ended with status %q. Missing assets are unobserved in this run rather than permanently removed.", currMeta.Status)
 	}
 
 	// 1. Subdomains diff

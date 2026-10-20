@@ -4,12 +4,17 @@
 package updater
 
 import (
+	"archive/tar"
+	"archive/zip"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -143,14 +148,13 @@ func Check(ctx context.Context) (*CheckResult, error) {
 	return result, nil
 }
 
-// Apply downloads the new binary and atomically replaces the current executable.
-// Configuration, results, cache, and managed dependencies are preserved.
+// Apply downloads the new binary, extracts it if packaged as .tar.gz or .zip,
+// and atomically replaces the current executable.
 func Apply(ctx context.Context, result *CheckResult) error {
 	if result.AssetURL == "" {
 		return fmt.Errorf("no download URL available for this platform")
 	}
 
-	// Determine current executable path.
 	exePath, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to determine executable path: %w", err)
@@ -176,34 +180,112 @@ func Apply(ctx context.Context, result *CheckResult) error {
 		return fmt.Errorf("download returned HTTP %d", resp.StatusCode)
 	}
 
-	// Write to a temp file alongside the existing binary.
-	tmp := exePath + ".update.tmp"
-	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0750)
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("failed to create temp file: %w", err)
+		return fmt.Errorf("failed to read download stream: %w", err)
 	}
 
-	if _, err := io.Copy(out, resp.Body); err != nil {
-		out.Close()
-		os.Remove(tmp)
-		return fmt.Errorf("failed to write update: %w", err)
+	tmp := exePath + ".update.tmp"
+	if err := ExtractBinary(bodyBytes, tmp); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("failed to extract updated binary: %w", err)
 	}
-	out.Close()
 
-	// Atomic replace.
+	_ = os.Chmod(tmp, 0755)
+
+	// Atomic replace with backup and rollback on failure.
 	backup := exePath + ".bak"
 	_ = os.Rename(exePath, backup)
 
 	if err := os.Rename(tmp, exePath); err != nil {
-		// Restore backup.
 		_ = os.Rename(backup, exePath)
-		os.Remove(tmp)
+		_ = os.Remove(tmp)
 		return fmt.Errorf("failed to replace binary: %w", err)
 	}
 
-	// Remove backup on success.
-	os.Remove(backup)
+	_ = os.Remove(backup)
 	return nil
+}
+
+// ExtractBinary inspects downloaded payload, extracts binary if compressed (tar.gz/zip), or writes raw executable.
+func ExtractBinary(data []byte, destPath string) error {
+	// 1. Check for gzip archive (.tar.gz) - magic bytes 0x1f, 0x8b
+	if len(data) > 2 && data[0] == 0x1f && data[1] == 0x8b {
+		gzr, err := gzip.NewReader(bytes.NewReader(data))
+		if err != nil {
+			return fmt.Errorf("failed to initialize gzip reader: %w", err)
+		}
+		defer gzr.Close()
+
+		tr := tar.NewReader(gzr)
+		for {
+			hdr, err := tr.Next()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return fmt.Errorf("failed reading tar archive: %w", err)
+			}
+			if hdr.Typeflag == tar.TypeReg || hdr.Typeflag == tar.TypeRegA {
+				base := strings.ToLower(filepath.Base(hdr.Name))
+				if strings.HasPrefix(base, "reconpipeline") {
+					out, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+					if err != nil {
+						return err
+					}
+					if _, err := io.Copy(out, tr); err != nil {
+						out.Close()
+						return err
+					}
+					out.Close()
+					return nil
+				}
+			}
+		}
+		return fmt.Errorf("reconpipeline binary not found inside tar archive")
+	}
+
+	// 2. Check for zip archive (.zip) - magic bytes 'P', 'K' (0x50, 0x4b)
+	if len(data) > 4 && data[0] == 0x50 && data[1] == 0x4b && data[2] == 0x03 && data[3] == 0x04 {
+		zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+		if err != nil {
+			return fmt.Errorf("failed reading zip archive: %w", err)
+		}
+		for _, f := range zr.File {
+			base := strings.ToLower(filepath.Base(f.Name))
+			if strings.HasPrefix(base, "reconpipeline") {
+				rc, err := f.Open()
+				if err != nil {
+					return err
+				}
+				out, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+				if err != nil {
+					rc.Close()
+					return err
+				}
+				if _, err := io.Copy(out, rc); err != nil {
+					out.Close()
+					rc.Close()
+					return err
+				}
+				out.Close()
+				rc.Close()
+				return nil
+			}
+		}
+		return fmt.Errorf("reconpipeline binary not found inside zip archive")
+	}
+
+	// 3. Raw executable binary
+	out, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
+	}
+	if _, err := out.Write(data); err != nil {
+		out.Close()
+		return err
+	}
+	return out.Close()
 }
 
 // IsNewer returns true if version a is newer than version b.

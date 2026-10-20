@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -107,24 +108,50 @@ func (e *Engine) Process(katanaFile, gauFile, outDir string) (*Results, error) {
 		}
 	}
 
-	// 1. Raw Merge & Storage
-	rawURLs, err := mergeFiles(katanaFile, gauFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to merge raw URLs: %w", err)
+	// 1. Raw Merge & Storage with Source Provenance
+	katanaURLs := readSourceLines(katanaFile)
+	gauURLs := readSourceLines(gauFile)
+
+	rawURLMap := make(map[string]*URLRecord)
+	var rawURLs []string
+
+	for _, u := range katanaURLs {
+		if rec, exists := rawURLMap[u]; exists {
+			rec.Sources = appendIfMissing(rec.Sources, "katana")
+		} else {
+			rec = NewURLRecord(u, "katana", "crawl")
+			rawURLMap[u] = rec
+			rawURLs = append(rawURLs, u)
+		}
 	}
+	for _, u := range gauURLs {
+		if rec, exists := rawURLMap[u]; exists {
+			rec.Sources = appendIfMissing(rec.Sources, "gau")
+		} else {
+			rec = NewURLRecord(u, "gau", "archive")
+			rawURLMap[u] = rec
+			rawURLs = append(rawURLs, u)
+		}
+	}
+
 	_ = writeLines(filepath.Join(outDir, "raw", "all-urls.txt"), rawURLs)
 	// Backward compatible path:
 	_ = writeLines(filepath.Join(outDir, "all-urls.txt"), rawURLs)
 
 	// 2. Deep Normalization
-	normalizedMap := make(map[string]string) // normalized -> original
+	normalizedMap := make(map[string]*URLRecord) // normalized -> record
 	var normalizedURLs []string
 	for _, raw := range rawURLs {
-		norm := NormalizeURL(raw)
+		rec := rawURLMap[raw]
+		norm := rec.NormalizedURL
 		if norm != "" {
 			normalizedURLs = append(normalizedURLs, norm)
-			if _, exists := normalizedMap[norm]; !exists {
-				normalizedMap[norm] = raw
+			if existing, exists := normalizedMap[norm]; !exists {
+				normalizedMap[norm] = rec
+			} else {
+				for _, s := range rec.Sources {
+					existing.Sources = appendIfMissing(existing.Sources, s)
+				}
 			}
 		}
 	}
@@ -145,12 +172,25 @@ func (e *Engine) Process(katanaFile, gauFile, outDir string) (*Results, error) {
 	_ = os.WriteFile(filepath.Join(outDir, "clusters", "endpoint-clusters.json"), clusterJSON, 0640)
 	_ = writeLines(filepath.Join(outDir, "clusters", "clustered-patterns.txt"), clusterPatterns)
 
+	// Build pattern lookup
+	clusterPatternMap := make(map[string]string)
+	for _, g := range clusters {
+		for _, u := range g.URLs {
+			clusterPatternMap[u] = g.Pattern
+		}
+	}
+
 	// 5. API Endpoint Detection
 	apiURLs, apiPatterns := ClassifyAPI(uniqueURLs)
 	_ = writeLines(filepath.Join(outDir, "api", "api-urls.txt"), apiURLs)
 	_ = writeLines(filepath.Join(outDir, "api-urls.txt"), apiURLs)
 	apiJSON, _ := json.MarshalIndent(apiPatterns, "", "  ")
 	_ = os.WriteFile(filepath.Join(outDir, "api", "api-patterns.json"), apiJSON, 0640)
+
+	apiSet := make(map[string]struct{}, len(apiURLs))
+	for _, u := range apiURLs {
+		apiSet[u] = struct{}{}
+	}
 
 	// 6. JavaScript Intelligence
 	jsURLs, jsAnalyses, extractedEndpoints := AnalyzeJavaScriptURLs(uniqueURLs)
@@ -160,12 +200,22 @@ func (e *Engine) Process(katanaFile, gauFile, outDir string) (*Results, error) {
 	jsJSON, _ := json.MarshalIndent(jsAnalyses, "", "  ")
 	_ = os.WriteFile(filepath.Join(outDir, "javascript", "javascript-analysis.json"), jsJSON, 0640)
 
+	jsSet := make(map[string]struct{}, len(jsURLs))
+	for _, u := range jsURLs {
+		jsSet[u] = struct{}{}
+	}
+
 	// 7. Parameter Intelligence
 	paramURLs, paramAnalyses := AnalyzeParameters(uniqueURLs)
 	_ = writeLines(filepath.Join(outDir, "parameters", "parameterized-urls.txt"), paramURLs)
 	_ = writeLines(filepath.Join(outDir, "parameterized-urls.txt"), paramURLs)
 	paramJSON, _ := json.MarshalIndent(paramAnalyses, "", "  ")
 	_ = os.WriteFile(filepath.Join(outDir, "parameters", "parameter-analysis.json"), paramJSON, 0640)
+
+	paramSet := make(map[string]struct{}, len(paramURLs))
+	for _, u := range paramURLs {
+		paramSet[u] = struct{}{}
+	}
 
 	// 8. Interesting Endpoint Detection
 	highInterest, medInterest, lowInterest := ClassifyInterest(uniqueURLs)
@@ -186,6 +236,54 @@ func (e *Engine) Process(katanaFile, gauFile, outDir string) (*Results, error) {
 	prioJSON, _ := json.MarshalIndent(priorities, "", "  ")
 	_ = os.WriteFile(filepath.Join(outDir, "priority", "priority-scores.json"), prioJSON, 0640)
 
+	prioMap := make(map[string]URLPriority, len(priorities))
+	for _, p := range priorities {
+		prioMap[p.URL] = p
+	}
+
+	// 10. Structured URL Records Assembly
+	records := make([]*URLRecord, 0, len(uniqueURLs))
+	for _, u := range uniqueURLs {
+		rec := normalizedMap[u]
+		if rec == nil {
+			rec = NewURLRecord(u, "merged", "unknown")
+		}
+
+		// Enrich parsed details
+		if parsed, parseErr := url.Parse(u); parseErr == nil {
+			rec.Scheme = parsed.Scheme
+			rec.Host = parsed.Hostname()
+			rec.Port = parsed.Port()
+			rec.Path = parsed.Path
+			rec.RawQuery = parsed.RawQuery
+			rec.Parameters = parsed.Query()
+		}
+
+		if _, ok := apiSet[u]; ok {
+			rec.IsAPI = true
+		}
+		if _, ok := jsSet[u]; ok {
+			rec.IsJavaScript = true
+		}
+		if _, ok := paramSet[u]; ok {
+			rec.IsParameterized = true
+		}
+		if pat, ok := clusterPatternMap[u]; ok {
+			rec.ClusterPattern = pat
+		}
+		if pVal, ok := prioMap[u]; ok {
+			rec.PriorityScore = pVal.Score
+			rec.Priority = pVal.Priority
+			rec.Reasons = pVal.Reasons
+		}
+
+		records = append(records, rec)
+	}
+
+	recordsJSON, _ := json.MarshalIndent(records, "", "  ")
+	_ = os.WriteFile(filepath.Join(outDir, "url-records.json"), recordsJSON, 0640)
+	_ = os.WriteFile(filepath.Join(outDir, "normalized", "url-records.json"), recordsJSON, 0640)
+
 	return &Results{
 		TotalRaw:        len(rawURLs),
 		TotalNormalized: len(normalizedURLs),
@@ -203,20 +301,20 @@ func (e *Engine) Process(katanaFile, gauFile, outDir string) (*Results, error) {
 	}, nil
 }
 
-// NormalizeURL performs consistent, deterministic URL normalization without altering semantics:
+// NormalizeURL performs conservative, deterministic URL normalization without altering HTTP semantics:
 // - trims whitespace
-// - strips URL fragments (#...)
+// - strips client-side URL fragments (#...) which are never transmitted in HTTP requests
 // - lowercases scheme and host
-// - removes default ports (:80, :443)
-// - sorts query parameters alphabetically by key
-// - standardizes path separators
+// - removes default ports (:80 for http, :443 for https)
+// - preserves path case sensitivity and trailing slashes (/path/ != /path)
+// - preserves original query parameter sequence, repeated parameters, and percent encoding
 func NormalizeURL(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return ""
 	}
 
-	// Remove fragment
+	// Remove fragment (HTTP request identity excludes fragment)
 	if idx := strings.IndexByte(raw, '#'); idx != -1 {
 		raw = raw[:idx]
 	}
@@ -240,16 +338,38 @@ func NormalizeURL(raw string) string {
 		u.Host = strings.TrimSuffix(u.Host, ":443")
 	}
 
-	// Clean path
-	path := u.Path
-	if path == "" {
-		path = "/"
-	} else if len(path) > 1 && strings.HasSuffix(path, "/") {
-		path = strings.TrimSuffix(path, "/")
+	// Clean path while strictly preserving trailing slashes
+	if u.Path == "" {
+		u.Path = "/"
+	} else {
+		hasTrailingSlash := strings.HasSuffix(u.Path, "/")
+		cleaned := path.Clean(u.Path)
+		if hasTrailingSlash && !strings.HasSuffix(cleaned, "/") {
+			cleaned += "/"
+		}
+		u.Path = cleaned
 	}
-	u.Path = path
 
-	// Normalize query parameter ordering
+	// Note: We intentionally preserve u.RawQuery as-is so query parameter sequence,
+	// repeated parameters, and percent encoding are not mutated.
+	return u.String()
+}
+
+// CanonicalKey computes a deterministic comparison key used strictly for semantic deduplication:
+// - applies conservative normalization (scheme, host, default ports, path)
+// - sorts query parameters alphabetically by key while preserving repeated parameter values
+// - standardizes parameter value encodings
+func CanonicalKey(raw string) string {
+	norm := NormalizeURL(raw)
+	if norm == "" {
+		return ""
+	}
+
+	u, err := url.Parse(norm)
+	if err != nil {
+		return norm
+	}
+
 	if u.RawQuery != "" {
 		q := u.Query()
 		keys := make([]string, 0, len(q))
@@ -552,10 +672,8 @@ func IsStaticAsset(raw string) bool {
 	return isStatic
 }
 
-// SelectForVerification conservatively filters and prioritizes unique URLs for HTTPX #2 verification.
-// It strictly validates target scope, filters out purely static resource noise, prioritizes high and medium
-// interest security endpoints (APIs, parameters, login/admin, JSON, GraphQL, Swagger), and bounds output by maxURLs.
-func SelectForVerification(uniqueURLs []string, target *scope.Target, maxURLs int) []string {
+// SelectForVerificationWithPolicy filters and prioritizes unique URLs using an explicit scope Policy.
+func SelectForVerificationWithPolicy(uniqueURLs []string, pol *scope.Policy, maxURLs int) []string {
 	var highList []string
 	var medList []string
 	var lowList []string
@@ -565,7 +683,7 @@ func SelectForVerification(uniqueURLs []string, target *scope.Target, maxURLs in
 		if raw == "" {
 			continue
 		}
-		if target != nil && !scope.InScope(raw, target) {
+		if pol != nil && !pol.IsURLInScope(raw) {
 			continue
 		}
 		if IsStaticAsset(raw) {
@@ -643,9 +761,19 @@ func SelectForVerification(uniqueURLs []string, target *scope.Target, maxURLs in
 	return selected
 }
 
+// SelectForVerification wraps SelectForVerificationWithPolicy using the target's default scope policy.
+func SelectForVerification(uniqueURLs []string, target *scope.Target, maxURLs int) []string {
+	return SelectForVerificationWithPolicy(uniqueURLs, scope.NewPolicy(target), maxURLs)
+}
+
 // SelectForVerification method on Engine.
 func (e *Engine) SelectForVerification(uniqueURLs []string, target *scope.Target, maxURLs int) []string {
 	return SelectForVerification(uniqueURLs, target, maxURLs)
+}
+
+// SelectForVerificationWithPolicy method on Engine.
+func (e *Engine) SelectForVerificationWithPolicy(uniqueURLs []string, pol *scope.Policy, maxURLs int) []string {
+	return SelectForVerificationWithPolicy(uniqueURLs, pol, maxURLs)
 }
 
 // PrioritizeURLs calculates a deterministic priority score and reasons for each URL.
@@ -714,6 +842,13 @@ func PrioritizeURLs(urls []string) (assessments []URLPriority, high []string, me
 	sort.Strings(med)
 	sort.Strings(low)
 
+	sort.Slice(assessments, func(i, j int) bool {
+		if assessments[i].Score != assessments[j].Score {
+			return assessments[i].Score > assessments[j].Score
+		}
+		return CanonicalKey(assessments[i].URL) < CanonicalKey(assessments[j].URL)
+	})
+
 	return assessments, high, med, low
 }
 
@@ -779,3 +914,36 @@ func writeLines(path string, lines []string) error {
 	}
 	return w.Flush()
 }
+
+func appendIfMissing(slice []string, val string) []string {
+	for _, s := range slice {
+		if s == val {
+			return slice
+		}
+	}
+	return append(slice, val)
+}
+
+func readSourceLines(path string) []string {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+
+	var lines []string
+	seen := make(map[string]struct{})
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 512*1024), 512*1024)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" {
+			if _, ok := seen[line]; !ok {
+				seen[line] = struct{}{}
+				lines = append(lines, line)
+			}
+		}
+	}
+	return lines
+}
+

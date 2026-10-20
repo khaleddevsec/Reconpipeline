@@ -165,11 +165,11 @@ func TestSmartURLNormalizer(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{"https://EXAMPLE.COM/path/", "https://example.com/path"},
+		{"https://EXAMPLE.COM/path/", "https://example.com/path/"},
 		{"http://example.com:80/api", "http://example.com/api"},
 		{"https://example.com:443/api", "https://example.com/api"},
 		{"https://example.com/test#section", "https://example.com/test"},
-		{"https://example.com/search?b=2&a=1", "https://example.com/search?a=1&b=2"},
+		{"https://example.com/search?b=2&a=1", "https://example.com/search?b=2&a=1"},
 	}
 
 	for _, tt := range tests {
@@ -177,6 +177,95 @@ func TestSmartURLNormalizer(t *testing.T) {
 		if got != tt.expected {
 			t.Errorf("NormalizeURL(%q) = %q, want %q", tt.input, got, tt.expected)
 		}
+	}
+}
+
+func TestURLNormalizationComprehensive(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		wantNorm      string
+		wantCanonical string
+	}{
+		{
+			name:          "Trailing slash preservation",
+			input:         "https://example.com/admin/",
+			wantNorm:      "https://example.com/admin/",
+			wantCanonical: "https://example.com/admin/",
+		},
+		{
+			name:          "No trailing slash preservation",
+			input:         "https://example.com/admin",
+			wantNorm:      "https://example.com/admin",
+			wantCanonical: "https://example.com/admin",
+		},
+		{
+			name:          "Default HTTP port removal",
+			input:         "http://example.com:80/path",
+			wantNorm:      "http://example.com/path",
+			wantCanonical: "http://example.com/path",
+		},
+		{
+			name:          "Non-default port preservation",
+			input:         "https://example.com:8443/api",
+			wantNorm:      "https://example.com:8443/api",
+			wantCanonical: "https://example.com:8443/api",
+		},
+		{
+			name:          "Reordered query parameters preserved in norm but canonicalized in CanonicalKey",
+			input:         "https://example.com/search?z=9&a=1&m=5",
+			wantNorm:      "https://example.com/search?z=9&a=1&m=5",
+			wantCanonical: "https://example.com/search?a=1&m=5&z=9",
+		},
+		{
+			name:          "Duplicate query parameters preserved",
+			input:         "https://example.com/filter?tag=go&tag=security",
+			wantNorm:      "https://example.com/filter?tag=go&tag=security",
+			wantCanonical: "https://example.com/filter?tag=go&tag=security",
+		},
+		{
+			name:          "Empty query value",
+			input:         "https://example.com/items?debug&view=true",
+			wantNorm:      "https://example.com/items?debug&view=true",
+			wantCanonical: "https://example.com/items?debug=&view=true",
+		},
+		{
+			name:          "Path case sensitivity preserved",
+			input:         "https://example.com/API/v1/Users",
+			wantNorm:      "https://example.com/API/v1/Users",
+			wantCanonical: "https://example.com/API/v1/Users",
+		},
+		{
+			name:          "Hostname case normalized to lowercase",
+			input:         "https://API.SUB.EXAMPLE.COM/test",
+			wantNorm:      "https://api.sub.example.com/test",
+			wantCanonical: "https://api.sub.example.com/test",
+		},
+		{
+			name:          "Client-side fragment stripped",
+			input:         "https://example.com/docs#installation",
+			wantNorm:      "https://example.com/docs",
+			wantCanonical: "https://example.com/docs",
+		},
+		{
+			name:          "Relative path traversal dot-segments resolved while keeping trailing slash",
+			input:         "https://example.com/static/../api/v1/",
+			wantNorm:      "https://example.com/api/v1/",
+			wantCanonical: "https://example.com/api/v1/",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			norm := urlengine.NormalizeURL(tt.input)
+			if norm != tt.wantNorm {
+				t.Errorf("NormalizeURL(%q) = %q, want %q", tt.input, norm, tt.wantNorm)
+			}
+			canon := urlengine.CanonicalKey(tt.input)
+			if canon != tt.wantCanonical {
+				t.Errorf("CanonicalKey(%q) = %q, want %q", tt.input, canon, tt.wantCanonical)
+			}
+		})
 	}
 }
 

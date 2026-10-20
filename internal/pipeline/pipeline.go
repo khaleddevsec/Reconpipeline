@@ -48,11 +48,14 @@ type Options struct {
 	NoCache bool
 	// Timeout is the scan timeout limit.
 	Timeout time.Duration
+	// Exclusions is a list of domains, subdomains, or CIDRs to exclude from scope.
+	Exclusions []string
 }
 
 // Pipeline orchestrates tool execution across all 6 stages.
 type Pipeline struct {
 	target    *scope.Target
+	policy    *scope.Policy
 	opts      Options
 	ws        *workspace.Manager
 	cache     *cache.Manager
@@ -88,6 +91,7 @@ func New(target *scope.Target, opts Options, ws *workspace.Manager) *Pipeline {
 
 	return &Pipeline{
 		target:    target,
+		policy:    scope.NewPolicy(target, opts.Exclusions...),
 		opts:      opts,
 		ws:        ws,
 		cache:     cacheMgr,
@@ -139,6 +143,17 @@ func (p *Pipeline) Run(ctx context.Context) error {
 		err = p.runStage(ctx, "subdomain-discovery", stage1Dir, func() error {
 			if subErr := p.subfinder.Run(ctx, p.target.Domain, subdomainsFile, p.opts.Threads); subErr != nil {
 				return subErr
+			}
+
+			// Enforce centralized scope policy on discovered subdomains
+			if rawSubs := readLines(subdomainsFile); len(rawSubs) > 0 {
+				var inScopeSubs []string
+				for _, sub := range rawSubs {
+					if p.policy.IsHostInScope(sub) {
+						inScopeSubs = append(inScopeSubs, sub)
+					}
+				}
+				_ = writeLines(subdomainsFile, inScopeSubs)
 			}
 			// Intelligent Asset Classification
 			classifier := asset.NewClassifier()
@@ -324,8 +339,8 @@ func (p *Pipeline) Run(ctx context.Context) error {
 				}
 			}
 
-			// Smart URL Selection: conservative filtering & prioritization
-			selected := urlprocessor.SelectForVerification(uniqueURLs, p.target, maxVerify)
+			// Smart URL Selection: conservative filtering & prioritization with centralized policy
+			selected := urlprocessor.SelectForVerificationWithPolicy(uniqueURLs, p.policy, maxVerify)
 
 			// Write input-urls.txt
 			if err := writeLines(inputURLsFile, selected); err != nil {
@@ -498,6 +513,21 @@ func (p *Pipeline) runStage(ctx context.Context, name, outDir string, fn func() 
 	default:
 	}
 
+	domain, _ := scope.SafeFilename(p.target.Domain)
+	inputHash := cache.ComputeHash(p.target.Domain + ":" + p.opts.Mode + ":" + p.opts.Profile)
+
+	// Check stage cache if enabled
+	if p.cache != nil && p.cache.IsEnabled() && !p.opts.NoCache {
+		if entry, entryDir, hit := p.cache.Get(domain, name, inputHash); hit && entry != nil {
+			if err := p.cache.RestoreArtifacts(entryDir, outDir); err == nil {
+				logging.Verbose("Cache hit for stage %s (target: %s)", name, domain)
+				p.state.SetStageCompleted(name, outDir, true)
+				p.saveState()
+				return nil
+			}
+		}
+	}
+
 	p.state.SetStageStatus(name, StatusRunning)
 	p.saveState()
 
@@ -516,12 +546,19 @@ func (p *Pipeline) runStage(ctx context.Context, name, outDir string, fn func() 
 		return err
 	}
 
+	// Cache successful stage outputs
+	if p.cache != nil && p.cache.IsEnabled() && !p.opts.NoCache {
+		if files, cErr := cache.CollectStageFiles(outDir); cErr == nil && len(files) > 0 {
+			_ = p.cache.Put(domain, name, inputHash, files, nil)
+		}
+	}
+
 	p.state.SetStageCompleted(name, outDir, false)
 	p.saveState()
 	return nil
 }
 
-// shouldSkip returns true if resume mode is on, the stage is completed, and required output exists.
+// shouldSkip returns true if resume mode is on, the stage is completed, and required output exists and is non-empty.
 func (p *Pipeline) shouldSkip(name, requiredFile string) bool {
 	if !p.opts.Resume {
 		return false
@@ -529,8 +566,11 @@ func (p *Pipeline) shouldSkip(name, requiredFile string) bool {
 	if !p.state.StageCompleted(name) {
 		return false
 	}
-	if requiredFile != "" && !workspace.Exists(requiredFile) {
-		return false
+	if requiredFile != "" {
+		fi, err := os.Stat(requiredFile)
+		if err != nil || fi.Size() == 0 {
+			return false
+		}
 	}
 	return true
 }

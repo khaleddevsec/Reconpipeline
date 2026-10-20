@@ -11,20 +11,22 @@
 
 Reconpipeline  
 Made by khaleddevsec  
-Version: v2.8.0  
-Release: V2.8 — Advanced GF Pattern Intelligence Layer
+Version: v2.6.0  
+Release: V2.6 — Hardened Enterprise Reconnaissance & Intelligence Pipeline
 
 ---
 
 ## Overview
 
 Reconpipeline is a single-command automated reconnaissance orchestration pipeline
-built for Linux and cross-platform environments. It coordinates Subfinder, HTTPX, Katana, GAU, and GF to perform
+built for Linux and cross-platform environments. It coordinates Subfinder, HTTPX, Katana, GAU, and GF under a centralized scope policy to perform
 subdomain discovery, DNS intelligence gathering, live host detection, technology
 fingerprinting, HTTP status categorization, active crawling, historical URL discovery,
 smart URL normalization, deduplication, URL clustering, parameter intelligence,
 endpoint prioritization, smart URL selection and live verification (HTTPX #2), advanced pattern intelligence, subdomain takeover detection, scan history persistence, delta change
 detection, and standalone HTML/JSON reporting.
+
+For full architectural specifications, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and the audit record at [docs/ENGINEERING_AUDIT.md](docs/ENGINEERING_AUDIT.md).
 
 The user interacts with one command:
 
@@ -309,6 +311,7 @@ Profiles & Modes:
 
 Scan:
         --resume            Resume an interrupted scan from saved state
+    -e, --exclude <list>    Exclude domains, subdomains, or CIDRs (comma-separated)
     -o, --output <dir>      Custom output directory for results
         --dry-run           Display execution plan without running tools
 
@@ -376,6 +379,7 @@ results/
     │   ├── all-urls.txt
     │   ├── normalized-urls.txt
     │   ├── unique-urls.txt
+    │   ├── url-records.json
     │   ├── api-urls.txt
     │   ├── javascript-urls.txt
     │   ├── parameterized-urls.txt
@@ -390,14 +394,24 @@ results/
     │   ├── interesting/
     │   └── priority/
     │
-    ├── 06-pattern-analysis/
+    ├── 06-url-verification/
+    │   ├── input-urls.txt
+    │   ├── verified-urls.txt
+    │   ├── httpx.jsonl
+    │   └── metadata.json
+    │
+    ├── 07-pattern-analysis/
     │   ├── xss.txt
     │   ├── sqli.txt
     │   ├── lfi.txt
     │   ├── ssrf.txt
     │   ├── redirect.txt
+    │   ├── takeover-candidates.txt
     │   ├── gf/
     │   └── patterns/
+    │       ├── pattern-results.json
+    │       ├── pattern-summary.json
+    │       └── takeover-candidates.json
     │
     ├── history/
     │   └── scan-20260827-183042/

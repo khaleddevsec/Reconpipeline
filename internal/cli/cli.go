@@ -47,6 +47,7 @@ var flags struct {
 	timeout  string
 	threads  int
 	workers  int
+	exclude  string
 	resume   bool
 	dryRun   bool
 	noCache  bool
@@ -118,6 +119,7 @@ Options:
 	root.Flags().StringVar(&flags.timeout, "timeout", "30m", "Scan timeout (e.g. 30m, 1h)")
 	root.Flags().IntVar(&flags.threads, "threads", 10, "Concurrency level")
 	root.Flags().IntVar(&flags.workers, "workers", 0, "Worker concurrency alias")
+	root.Flags().StringVarP(&flags.exclude, "exclude", "e", "", "Excluded subdomains or CIDR ranges (comma-separated)")
 	root.Flags().BoolVar(&flags.resume, "resume", false, "Resume a previous scan")
 	root.Flags().BoolVar(&flags.dryRun, "dry-run", false, "Show pipeline plan without executing")
 	root.Flags().BoolVar(&flags.noCache, "no-cache", false, "Bypass stage caching")
@@ -374,6 +376,16 @@ func runSingleTarget(cmd *cobra.Command, targetRaw string) error {
 	// Fetch previous scan before current run
 	prevMeta, prevDir, _ := history.GetLatestScan(targetDir)
 
+	var exclusions []string
+	if flags.exclude != "" {
+		for _, e := range strings.Split(flags.exclude, ",") {
+			e = strings.TrimSpace(e)
+			if e != "" {
+				exclusions = append(exclusions, e)
+			}
+		}
+	}
+
 	// Run pipeline.
 	pipelineOpts := pipeline.Options{
 		OutputRoot: flags.output,
@@ -384,6 +396,7 @@ func runSingleTarget(cmd *cobra.Command, targetRaw string) error {
 		DryRun:     flags.dryRun,
 		NoCache:    flags.noCache,
 		Timeout:    timeout,
+		Exclusions: exclusions,
 	}
 
 	p := pipeline.New(target, pipelineOpts, ws)
@@ -605,18 +618,28 @@ func modeLabel(mode string) string {
 
 func showDryRun(target *scope.Target, mode, output string, ws *workspace.Manager) error {
 	fmt.Printf("Reconpipeline\nVersion: %s\n\n", version.Version)
-	fmt.Printf("Target : %s\n", target.Domain)
-	fmt.Printf("Mode   : %s\n\n", modeLabel(mode))
+	fmt.Printf("Target Domain : %s\n", target.Domain)
+	fmt.Printf("Scan Mode     : %s\n", modeLabel(mode))
 
-	fmt.Println("Pipeline:")
+	if flags.exclude != "" {
+		fmt.Printf("Exclusions    : %s\n", flags.exclude)
+	} else {
+		fmt.Printf("Exclusions    : none configured\n")
+	}
+
+	fmt.Println("Scope Policy  : Centralized authorization boundary strictly enforced.")
+	fmt.Println("                Private ranges (RFC 1918, 127.0.0.0/8, 169.254.169.254) and off-origin hosts BLOCKED.")
 	fmt.Println()
-	fmt.Println("[01] Subdomain Discovery")
-	fmt.Println("[02] Live Host Detection")
-	fmt.Println("[03] Active Crawling")
-	fmt.Println("[04] Historical URL Discovery")
-	fmt.Println("[05] URL Processing")
-	fmt.Println("[06] URL Verification")
-	fmt.Println("[07] Pattern Analysis")
+
+	fmt.Println("Planned Pipeline Stages & Operations:")
+	fmt.Println()
+	fmt.Println("[01] Subdomain Discovery      : Passive enumeration & DNS resolution (Subfinder)")
+	fmt.Println("[02] Live Host Detection       : Active HTTP probe & metadata profiling (HTTPX #1)")
+	fmt.Println("[03] Active Crawling           : Scope-constrained spidering (Katana)")
+	fmt.Println("[04] Historical URL Discovery  : Passive archive discovery (GAU)")
+	fmt.Println("[05] URL Processing            : Normalization, clustering, API & param classification (urlengine)")
+	fmt.Println("[06] URL Verification          : Active verification of selected endpoints (HTTPX #2)")
+	fmt.Println("[07] Pattern Analysis          : Security intelligence & takeover candidate analysis (GF)")
 	fmt.Println()
 
 	fmt.Println("Dependencies:")
@@ -633,9 +656,9 @@ func showDryRun(target *scope.Target, mode, output string, ws *workspace.Manager
 	if outRoot == "" {
 		outRoot = "results"
 	}
-	fmt.Printf("Output:\n\n%s/%s/\n\n", outRoot, target.Domain)
+	fmt.Printf("Output Destination:\n\n%s/%s/\n\n", outRoot, target.Domain)
 	fmt.Println("Dry run complete.")
-	fmt.Println("No reconnaissance was performed.")
+	fmt.Println("No reconnaissance or active network requests were performed.")
 	return nil
 }
 

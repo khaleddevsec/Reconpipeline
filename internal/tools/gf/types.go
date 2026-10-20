@@ -28,34 +28,50 @@ const (
 	CategoryTakeover      PatternCategory = "Subdomain Takeover Intelligence"
 )
 
+// FindingState indicates the explicit validation state of an intelligence finding.
+// Reconpipeline strictly distinguishes unverified candidates from corroborated observations and confirmed conditions.
+type FindingState string
+
+const (
+	StateCandidate    FindingState = "candidate"
+	StateCorroborated FindingState = "corroborated"
+	StateConfirmed    FindingState = "confirmed"
+	StateRejected     FindingState = "rejected"
+	StateUnverified   FindingState = "unverified"
+)
+
 // CandidateMatch represents an identified intelligence match for a URL.
 // IMPORTANT: GF pattern matches are strictly candidate areas of interest, never confirmed vulnerabilities.
 type CandidateMatch struct {
-	URL           string          `json:"url"`
-	Pattern       string          `json:"pattern"`
-	Category      PatternCategory `json:"category"`
-	Confidence    ConfidenceLevel `json:"confidence"`
-	MatchedParam  string          `json:"matched_param,omitempty"`
-	MatchedPath   string          `json:"matched_path,omitempty"`
-	Context       string          `json:"context,omitempty"`
-	SecurityFocus string          `json:"security_focus"`
-	StatusCode    int             `json:"status_code,omitempty"`
-	ContentType   string          `json:"content_type,omitempty"`
-	Server        string          `json:"server,omitempty"`
-	ContentLength int             `json:"content_length,omitempty"`
-	Location      string          `json:"location,omitempty"`
-	Technologies  []string        `json:"technologies,omitempty"`
+	URL              string          `json:"url"`
+	Pattern          string          `json:"pattern"`
+	Category         PatternCategory `json:"category"`
+	Confidence       ConfidenceLevel `json:"confidence"`
+	State            FindingState    `json:"state"`
+	RequiredEvidence string          `json:"required_evidence,omitempty"`
+	MatchedParam     string          `json:"matched_param,omitempty"`
+	MatchedPath      string          `json:"matched_path,omitempty"`
+	Context          string          `json:"context,omitempty"`
+	SecurityFocus    string          `json:"security_focus"`
+	StatusCode       int             `json:"status_code,omitempty"`
+	ContentType      string          `json:"content_type,omitempty"`
+	Server           string          `json:"server,omitempty"`
+	ContentLength    int             `json:"content_length,omitempty"`
+	Location         string          `json:"location,omitempty"`
+	Technologies     []string        `json:"technologies,omitempty"`
 }
 
 // TakeoverCandidate represents a potential subdomain takeover vulnerability candidate.
 type TakeoverCandidate struct {
-	Subdomain   string          `json:"subdomain"`
-	CNAME       string          `json:"cname"`
-	Service     string          `json:"service"`
-	Fingerprint string          `json:"fingerprint"`
-	Confidence  ConfidenceLevel `json:"confidence"`
-	StatusCode  int             `json:"status_code,omitempty"`
-	Evidence    string          `json:"evidence"`
+	Subdomain        string          `json:"subdomain"`
+	CNAME            string          `json:"cname"`
+	Service          string          `json:"service"`
+	Fingerprint      string          `json:"fingerprint"`
+	Confidence       ConfidenceLevel `json:"confidence"`
+	State            FindingState    `json:"state"`
+	RequiredEvidence string          `json:"required_evidence,omitempty"`
+	StatusCode       int             `json:"status_code,omitempty"`
+	Evidence         string          `json:"evidence"`
 }
 
 // CategorySummary aggregates count and confidence levels per category.

@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -213,4 +214,35 @@ func (m *Manager) Clear() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return os.RemoveAll(m.cacheDir)
+}
+
+// CollectStageFiles walks stageDir and loads all output files into a byte map for caching.
+func CollectStageFiles(stageDir string) (map[string][]byte, error) {
+	files := make(map[string][]byte)
+	err := filepath.Walk(stageDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(info.Name(), ".tmp") || strings.HasSuffix(info.Name(), ".lock") {
+			return nil
+		}
+		// Bound to 15MB to prevent memory exhaustion
+		if info.Size() > 15*1024*1024 {
+			return nil
+		}
+		rel, err := filepath.Rel(stageDir, path)
+		if err != nil {
+			return err
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		files[rel] = data
+		return nil
+	})
+	return files, err
 }

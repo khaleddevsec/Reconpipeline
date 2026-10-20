@@ -264,7 +264,10 @@ tr:hover td { background: rgba(255, 255, 255, 0.02); }
 					details = append(details, fmt.Sprintf("status: %d &rarr; %d", ca.OldStatus, ca.NewStatus))
 				}
 				if ca.OldTitle != ca.NewTitle && ca.OldTitle != "" && ca.NewTitle != "" {
-					details = append(details, fmt.Sprintf("title: %q &rarr; %q", ca.OldTitle, ca.NewTitle))
+					details = append(details, fmt.Sprintf("title: &ldquo;%s&rdquo; &rarr; &ldquo;%s&rdquo;", html.EscapeString(ca.OldTitle), html.EscapeString(ca.NewTitle)))
+				}
+				if ca.OldServer != ca.NewServer && ca.OldServer != "" && ca.NewServer != "" {
+					details = append(details, fmt.Sprintf("server: &ldquo;%s&rdquo; &rarr; &ldquo;%s&rdquo;", html.EscapeString(ca.OldServer), html.EscapeString(ca.NewServer)))
 				}
 				if len(details) > 0 {
 					sb.WriteString(` (` + strings.Join(details, ", ") + `)`)

@@ -1,11 +1,15 @@
-// Package katana provides the Katana tool adapter for Reconpipeline.
 package katana
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"os"
+	"regexp"
+	"strings"
 
 	"github.com/khaleddevsec/Reconpipeline/internal/executor"
+	"github.com/khaleddevsec/Reconpipeline/internal/scope"
 	"github.com/khaleddevsec/Reconpipeline/internal/workspace"
 )
 
@@ -50,6 +54,7 @@ func (t *Tool) Run(ctx context.Context, liveHostsFile string, rootDomain string,
 		"-c", fmt.Sprintf("%d", threads),
 		// Restrict crawl scope to the root domain.
 		"-d", fmt.Sprintf("%d", crawlDepth),
+		"-cs", regexp.QuoteMeta(rootDomain),
 		"-fs", "fqdn",
 		"-jc", // extract URLs from JavaScript
 		"-kf", "all",
@@ -65,6 +70,35 @@ func (t *Tool) Run(ctx context.Context, liveHostsFile string, rootDomain string,
 		}
 	}
 
-	_ = rootDomain
+	// Secondary scope enforcement: filter any URLs that escaped crawl boundaries
+	filterOutOfScopeURLs(outFile, rootDomain)
 	return nil
+}
+
+func filterOutOfScopeURLs(path string, rootDomain string) {
+	data, err := os.ReadFile(path)
+	if err != nil || len(data) == 0 {
+		return
+	}
+
+	policy := scope.NewPolicy(&scope.Target{Domain: rootDomain})
+	var filtered []string
+	scanner := bufio.NewScanner(strings.NewReader(string(data)))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" && policy.IsURLInScope(line) {
+			filtered = append(filtered, line)
+		}
+	}
+
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0640)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	w := bufio.NewWriter(f)
+	for _, l := range filtered {
+		fmt.Fprintln(w, l)
+	}
+	_ = w.Flush()
 }

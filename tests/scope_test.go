@@ -130,3 +130,70 @@ func TestRootDomain(t *testing.T) {
 		}
 	}
 }
+
+func TestScopePolicy_LookalikeAndBypassAttempts(t *testing.T) {
+	target, err := scope.Normalise("example.com")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	policy := scope.NewPolicy(target, "internal.example.com", "10.0.0.0/8")
+
+	bypasses := []string{
+		"example.com.attacker.test",
+		"example.com.evil.com",
+		"attacker-example.com",
+		"attackerexample.com",
+		"internal.example.com",
+		"sub.internal.example.com",
+		"evil.com",
+		"10.1.2.3",
+		"127.0.0.1",
+		"169.254.169.254",
+	}
+
+	for _, bypass := range bypasses {
+		if policy.IsHostInScope(bypass) {
+			t.Errorf("Security check failed: host %q was permitted under policy, expected rejected", bypass)
+		}
+	}
+
+	validHosts := []string{
+		"example.com",
+		"api.example.com",
+		"app.v1.example.com",
+	}
+	for _, vh := range validHosts {
+		if !policy.IsHostInScope(vh) {
+			t.Errorf("Valid host %q was rejected under policy, expected permitted", vh)
+		}
+	}
+}
+
+func TestScopePolicy_URLSchemesAndExclusions(t *testing.T) {
+	target, _ := scope.Normalise("example.com")
+	policy := scope.NewPolicy(target, "dev.example.com")
+
+	tests := []struct {
+		url      string
+		inScope  bool
+	}{
+		{"https://example.com/api/v1", true},
+		{"http://sub.example.com/login", true},
+		{"https://dev.example.com/test", false}, // explicitly excluded
+		{"https://sub.dev.example.com/test", false}, // subdomain of excluded
+		{"javascript:alert(1)", false},
+		{"file:///etc/passwd", false},
+		{"ftp://example.com/files", false},
+		{"https://example.com.attacker.com/path", false},
+		{"https://127.0.0.1/status", false},
+		{"https://169.254.169.254/latest/meta-data/", false},
+	}
+
+	for _, tt := range tests {
+		got := policy.IsURLInScope(tt.url)
+		if got != tt.inScope {
+			t.Errorf("IsURLInScope(%q) = %v, want %v", tt.url, got, tt.inScope)
+		}
+	}
+}

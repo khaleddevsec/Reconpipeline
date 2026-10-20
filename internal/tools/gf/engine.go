@@ -143,7 +143,7 @@ func (e *Engine) EvaluateConfidence(rawURL string, def *PatternDefinition, meta 
 
 	case CategorySensitiveFile:
 		if meta != nil && meta.StatusCode == 200 {
-			return ConfidenceHigh, "Sensitive file exposure confirmed live (HTTP 200)"
+			return ConfidenceHigh, "Live HTTP 200 response on sensitive path (candidate; requires content inspection)"
 		}
 		if meta != nil && (meta.StatusCode == 401 || meta.StatusCode == 403) {
 			return ConfidenceMedium, fmt.Sprintf("Protected sensitive file path (HTTP %d)", meta.StatusCode)
@@ -275,14 +275,23 @@ func (e *Engine) RunAnalysis(ctx context.Context, actx *AnalysisContext, urlsFil
 				conf, reasoning := e.EvaluateConfidence(rawURL, &def, meta)
 				matchedParam := ExtractParamName(rawURL, &def)
 
+				state := StateCandidate
+				reqEvidence := "Endpoint reachability and live response verification"
+				if meta != nil && meta.StatusCode != 0 {
+					state = StateCorroborated
+					reqEvidence = "Active payload reflection or application-layer impact confirmation"
+				}
+
 				match := CandidateMatch{
-					URL:           rawURL,
-					Pattern:       def.Name,
-					Category:      def.Category,
-					Confidence:    conf,
-					MatchedParam:  matchedParam,
-					Context:       reasoning,
-					SecurityFocus: def.SecurityFocus,
+					URL:              rawURL,
+					Pattern:          def.Name,
+					Category:         def.Category,
+					Confidence:       conf,
+					State:            state,
+					RequiredEvidence: reqEvidence,
+					MatchedParam:     matchedParam,
+					Context:          reasoning,
+					SecurityFocus:    def.SecurityFocus,
 				}
 
 				if meta != nil {

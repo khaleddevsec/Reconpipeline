@@ -150,29 +150,39 @@ func EvaluateTakeover(subdomain, cname string, statusCode int, title, server, re
 		}
 
 		var conf ConfidenceLevel
+		var state FindingState
+		var reqEvidence string
 		var evidence string
 
 		if hasFingerprint {
 			conf = ConfidenceHigh
+			state = StateCorroborated
+			reqEvidence = "Out-of-band tenant claimability validation (Reconpipeline never attempts resource claiming)"
 			evidence = fmt.Sprintf("CNAME %s matches %s, and response contains exact signature '%s' (HTTP %d)",
 				cleanedCNAME, sig.Service, sig.Fingerprint, statusCode)
 		} else if statusMatch || statusCode == 404 || statusCode == 503 {
 			conf = ConfidenceMedium
+			state = StateCandidate
+			reqEvidence = "Service response signature verification and tenant claimability confirmation"
 			evidence = fmt.Sprintf("CNAME %s matches %s with HTTP %d error state, but fingerprint was unverified",
 				cleanedCNAME, sig.Service, statusCode)
 		} else {
 			conf = ConfidenceLow
+			state = StateCandidate
+			reqEvidence = "Host DNS resolution and HTTP error fingerprint corroboration"
 			evidence = fmt.Sprintf("CNAME %s points to %s (HTTP %d)", cleanedCNAME, sig.Service, statusCode)
 		}
 
 		return TakeoverCandidate{
-			Subdomain:   subdomain,
-			CNAME:       cleanedCNAME,
-			Service:     sig.Service,
-			Fingerprint: sig.Fingerprint,
-			Confidence:  conf,
-			StatusCode:  statusCode,
-			Evidence:    evidence,
+			Subdomain:        subdomain,
+			CNAME:            cleanedCNAME,
+			Service:          sig.Service,
+			Fingerprint:      sig.Fingerprint,
+			Confidence:       conf,
+			State:            state,
+			RequiredEvidence: reqEvidence,
+			StatusCode:       statusCode,
+			Evidence:         evidence,
 		}, true
 	}
 
