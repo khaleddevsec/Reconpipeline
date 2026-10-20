@@ -32,9 +32,14 @@ func (t *Tool) Available() bool { return workspace.IsExecutable(t.binPath) }
 
 // Run executes katana against the live hosts file, scoped to rootDomain,
 // and writes discovered URLs to outFile.
-func (t *Tool) Run(ctx context.Context, liveHostsFile string, rootDomain string, outFile string, threads int) error {
+func (t *Tool) Run(ctx context.Context, liveHostsFile string, rootDomain string, outFile string, threads int, optionalDepth ...int) error {
 	if !t.Available() {
 		return fmt.Errorf("katana binary not found at %q", t.binPath)
+	}
+
+	crawlDepth := 3
+	if len(optionalDepth) > 0 && optionalDepth[0] > 0 {
+		crawlDepth = optionalDepth[0]
 	}
 
 	args := []string{
@@ -44,7 +49,7 @@ func (t *Tool) Run(ctx context.Context, liveHostsFile string, rootDomain string,
 		"-no-color",
 		"-c", fmt.Sprintf("%d", threads),
 		// Restrict crawl scope to the root domain.
-		"-d", "5",
+		"-d", fmt.Sprintf("%d", crawlDepth),
 		"-fs", "fqdn",
 		"-jc", // extract URLs from JavaScript
 		"-kf", "all",

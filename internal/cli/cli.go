@@ -2,6 +2,7 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -38,6 +39,8 @@ const logo = `
 
 // flags holds all CLI flag values.
 var flags struct {
+	target   string
+	list     string
 	output   string
 	mode     string
 	profile  string
@@ -65,6 +68,8 @@ func New() *cobra.Command {
 Usage:
 
     reconpipeline <target>
+    reconpipeline -u <target>
+    reconpipeline -l <targets.txt>
 
 Commands:
 
@@ -77,32 +82,36 @@ Commands:
 
 Options:
 
-    -h, --help
-    -v, --version
+    -u, --url <target>     Target domain or URL
+    -l, --list <file>      File containing list of targets
+    -o, --output <dir>     Output directory for results
+    --profile <name>       Profile: full, fast, passive (default: full)
+    --mode <mode>          Scan mode: full, active, passive (default: full)
+    --resume               Resume an interrupted scan
+    --dry-run              Show pipeline plan without executing
+    --no-cache             Bypass stage caching
 
-    --profile <name>   Profile: full, fast, passive (default: full)
-    --mode <mode>      Scan mode: full, active, passive (default: full)
-    --resume           Resume an interrupted scan
-    --output <dir>     Output directory for results
-    --dry-run          Show pipeline plan without executing
-    --no-cache         Bypass stage caching
+    --timeout <dur>        Scan timeout (e.g. 30m, 1h) (default: 30m)
+    --threads <num>        Concurrency level (default: 10)
+    --workers <num>        Worker concurrency alias
 
-    --timeout <dur>    Scan timeout (e.g. 30m, 1h) (default: 30m)
-    --threads <num>    Concurrency level (default: 10)
-    --workers <num>    Worker concurrency alias
-
-    --no-color         Disable coloured output
-    --quiet            Minimal output
-    --verbose          Detailed output`,
+    --no-color             Disable coloured output
+    -q, --quiet            Minimal output
+    --verbose              Detailed output
+    -h, --help             Show help
+    -v, --version          Show version`,
 		Version:           version.Version,
 		SilenceUsage:      true,
 		SilenceErrors:     true,
-		Args:              cobra.MaximumNArgs(1),
+		Args:              cobra.ArbitraryArgs,
 		RunE:              runMain,
 		PersistentPreRunE: persistentPreRun,
 	}
 
 	// Flags.
+	root.Flags().StringVarP(&flags.target, "url", "u", "", "Target domain or URL (e.g. example.com)")
+	root.Flags().StringVarP(&flags.target, "target", "t", "", "Target domain or URL alias")
+	root.Flags().StringVarP(&flags.list, "list", "l", "", "Path to file containing list of targets")
 	root.Flags().StringVarP(&flags.output, "output", "o", "", "Output directory for results")
 	root.Flags().StringVar(&flags.mode, "mode", "full", "Scan mode: full, active, passive")
 	root.Flags().StringVar(&flags.profile, "profile", "full", "Execution profile: full, fast, passive")
@@ -115,8 +124,8 @@ Options:
 	root.Flags().BoolVar(&flags.noColor, "no-color", false, "Disable terminal colours")
 	root.Flags().BoolVarP(&flags.quiet, "quiet", "q", false, "Minimal output")
 	root.Flags().BoolVar(&flags.verbose, "verbose", false, "Detailed output")
-	root.Flags().BoolP("update", "u", false, "Update Reconpipeline")
-	root.Flags().BoolP("doctor", "", false, "Check system and dependencies")
+	root.Flags().Bool("update", false, "Update Reconpipeline")
+	root.Flags().Bool("doctor", false, "Check system and dependencies")
 
 	// Handle --update and --doctor as flags that invoke their commands.
 	root.Flags().Lookup("update").Hidden = false
@@ -152,7 +161,7 @@ func persistentPreRun(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// runMain is the main entry point for reconpipeline <target>.
+// runMain is the main entry point for reconpipeline.
 func runMain(cmd *cobra.Command, args []string) error {
 	// Check --update / --doctor flags.
 	if update, _ := cmd.Flags().GetBool("update"); update {
@@ -162,16 +171,124 @@ func runMain(cmd *cobra.Command, args []string) error {
 		return runDoctor(cmd, args)
 	}
 
-	if len(args) == 0 {
+	var targets []string
+	if flags.target == "-" || (len(args) > 0 && args[0] == "-") {
+		stdinTargets, err := readTargetLines("-")
+		if err != nil {
+			return fmt.Errorf("failed to read from stdin: %w", err)
+		}
+		targets = append(targets, stdinTargets...)
+	} else {
+		if flags.target != "" {
+			targets = append(targets, flags.target)
+		}
+		if len(args) > 0 {
+			targets = append(targets, args...)
+		}
+	}
+
+	if flags.list != "" {
+		fileTargets, err := readTargetLines(flags.list)
+		if err != nil {
+			return fmt.Errorf("failed to read targets file %q: %w", flags.list, err)
+		}
+		targets = append(targets, fileTargets...)
+	}
+
+	// Check if piped from stdin without blocking
+	if len(targets) == 0 {
+		if stat, err := os.Stdin.Stat(); err == nil && (stat.Mode()&os.ModeCharDevice) == 0 {
+			targets = append(targets, readPipedStdin(250*time.Millisecond)...)
+		}
+	}
+
+	if len(targets) == 0 {
 		printBanner()
 		printUsage()
 		return nil
 	}
 
+	for _, t := range targets {
+		if err := runSingleTarget(cmd, t); err != nil {
+			if len(targets) > 1 {
+				logging.Error("Target %s failed: %v", t, err)
+				continue
+			}
+			return err
+		}
+	}
+	return nil
+}
+
+func readPipedStdin(timeout time.Duration) []string {
+	ch := make(chan string)
+
+	go func() {
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			ch <- scanner.Text()
+		}
+		close(ch)
+	}()
+
+	select {
+	case line, ok := <-ch:
+		if !ok {
+			return nil
+		}
+		var lines []string
+		line = strings.TrimSpace(line)
+		if line != "" && !strings.HasPrefix(line, "#") {
+			lines = append(lines, line)
+		}
+		for l := range ch {
+			l = strings.TrimSpace(l)
+			if l != "" && !strings.HasPrefix(l, "#") {
+				lines = append(lines, l)
+			}
+		}
+		return lines
+	case <-time.After(timeout):
+		return nil
+	}
+}
+
+func readTargetLines(path string) ([]string, error) {
+	if path == "-" {
+		var lines []string
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line != "" && !strings.HasPrefix(line, "#") {
+				lines = append(lines, line)
+			}
+		}
+		return lines, scanner.Err()
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" && !strings.HasPrefix(line, "#") {
+			lines = append(lines, line)
+		}
+	}
+	return lines, scanner.Err()
+}
+
+// runSingleTarget runs the reconnaissance pipeline for a single target string.
+func runSingleTarget(cmd *cobra.Command, targetRaw string) error {
 	cfg := config.NewConfig()
 	ws := workspace.NewManager(cfg)
 
-	target, err := scope.Normalise(args[0])
+	target, err := scope.Normalise(targetRaw)
 	if err != nil {
 		return fmt.Errorf("invalid target: %w", err)
 	}
@@ -421,48 +538,56 @@ func statusSymbol(state *pipeline.RunState, name string) string {
 }
 
 func printBanner() {
-	fmt.Print(logo)
-	fmt.Println()
-	fmt.Println("Reconpipeline")
-	fmt.Println("Made by khaleddevsec")
-	vStatus := updater.GetVersionStatus(context.Background())
-	fmt.Printf("Version: %s\n", vStatus)
-	fmt.Println()
+	fmt.Fprint(os.Stderr, logo)
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Reconpipeline")
+	fmt.Fprintln(os.Stderr, "Made by khaleddevsec")
+	fmt.Fprintf(os.Stderr, "Version: %s\n\n", version.Version)
 }
 
 func printUsage() {
-	fmt.Println(`Reconpipeline - Automated Reconnaissance Pipeline
+	fmt.Fprintln(os.Stderr, `Reconpipeline - Automated Reconnaissance Pipeline
 
 Usage:
 
     reconpipeline <target>
+    reconpipeline -u <target>
+    reconpipeline -l <targets.txt>
 
 Commands:
 
-    version       Show version
-    update        Update Reconpipeline
-    doctor        Check system and dependencies
+    history <target>   View historical scans for target
+    compare <target>   Compare recent scans for changes
+    report <target>    Display latest scan report
+    doctor             Check system and dependencies
+    update             Update Reconpipeline
+    version            Show version
 
 Options:
 
-    -h, --help
-    -v, --version
+    -u, --url <target>     Target domain or URL
+    -l, --list <file>      File containing list of targets
+    -o, --output <dir>     Output directory for results
+    --profile <name>       Profile: full, fast, passive (default: full)
+    --mode <mode>          Scan mode: full, active, passive (default: full)
 
-    --resume
-    --output <dir>
-    --mode <mode>
-    --dry-run
+    --resume               Resume an interrupted scan
+    --dry-run              Show pipeline plan without executing
+    --no-cache             Bypass stage caching
 
-    --timeout <duration>
-    --threads <number>
+    --timeout <duration>   Scan timeout (e.g. 30m, 1h) (default: 30m)
+    --threads <number>     Concurrency level (default: 10)
+    --workers <number>     Worker concurrency alias
 
-    --quiet
-    --verbose`)
+    -q, --quiet            Minimal output
+    --verbose              Detailed output
+    --no-color             Disable terminal colours
+    -h, --help             Show help
+    -v, --version          Show version`)
 }
 
 func versionString() string {
-	vStatus := updater.GetVersionStatus(context.Background())
-	return fmt.Sprintf("Reconpipeline %s\nMade by khaleddevsec", vStatus)
+	return fmt.Sprintf("Reconpipeline %s\nMade by khaleddevsec", version.Version)
 }
 
 func modeLabel(mode string) string {
@@ -549,13 +674,22 @@ func formatDuration(d time.Duration) string {
 // ─── Subcommands ─────────────────────────────────────────────────────────────
 
 func versionCmd() *cobra.Command {
-	return &cobra.Command{
+	var check bool
+	cmd := &cobra.Command{
 		Use:   "version",
 		Short: "Show version",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println(versionString())
+			if check {
+				fmt.Println("Checking for updates...")
+				vStatus := updater.GetVersionStatus(context.Background())
+				fmt.Printf("Reconpipeline %s\nMade by khaleddevsec\n", vStatus)
+			} else {
+				fmt.Println(versionString())
+			}
 		},
 	}
+	cmd.Flags().BoolVarP(&check, "check", "c", false, "Check for newer version online")
+	return cmd
 }
 
 func updateCmd() *cobra.Command {

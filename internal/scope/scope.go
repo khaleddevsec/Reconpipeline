@@ -25,6 +25,8 @@ type Target struct {
 // Normalise parses and normalises the user-supplied target string.
 // It accepts bare domains (example.com) and URLs (https://example.com).
 func Normalise(input string) (*Target, error) {
+	input = strings.TrimSpace(input)
+	input = strings.Trim(input, `"'`)
 	if input == "" {
 		return nil, fmt.Errorf("target cannot be empty")
 	}

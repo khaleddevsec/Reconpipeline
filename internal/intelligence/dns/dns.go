@@ -75,11 +75,30 @@ func (e *Engine) ResolveHost(ctx context.Context, hostname string) Record {
 	return rec
 }
 
+// DetectWildcard checks if a root domain resolves non-existent subdomains (wildcard DNS).
+func (e *Engine) DetectWildcard(ctx context.Context, domain string) (bool, []string) {
+	randSub := fmt.Sprintf("recon-wc-%d.%s", time.Now().UnixNano(), domain)
+	rec := e.ResolveHost(ctx, randSub)
+	if len(rec.IPs) > 0 {
+		return true, rec.IPs
+	}
+	return false, nil
+}
+
 // ProcessSubdomains resolves DNS metadata for all hosts in subdomainsFile
 // and writes structured output to dnsDir.
-func (e *Engine) ProcessSubdomains(ctx context.Context, subdomainsFile, dnsDir string) ([]Record, error) {
+func (e *Engine) ProcessSubdomains(ctx context.Context, subdomainsFile, dnsDir string, rootDomain ...string) ([]Record, error) {
 	if err := os.MkdirAll(dnsDir, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create dns directory: %w", err)
+	}
+
+	// Detect wildcard DNS if rootDomain is provided
+	if len(rootDomain) > 0 && rootDomain[0] != "" {
+		if isWc, wcIPs := e.DetectWildcard(ctx, rootDomain[0]); isWc {
+			_ = writeLines(filepath.Join(dnsDir, "wildcard.txt"), []string{
+				fmt.Sprintf("Wildcard DNS detected for %s: %s", rootDomain[0], strings.Join(wcIPs, ", ")),
+			})
+		}
 	}
 
 	f, err := os.Open(subdomainsFile)

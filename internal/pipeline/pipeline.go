@@ -149,9 +149,12 @@ func (p *Pipeline) Run(ctx context.Context) error {
 
 			// DNS Intelligence Gathering
 			dnsResolver := dns.NewEngine(p.opts.Threads)
-			dnsResults, _ := dnsResolver.ProcessSubdomains(ctx, subdomainsFile, stage1Dir)
+			dnsResults, _ := dnsResolver.ProcessSubdomains(ctx, subdomainsFile, stage1Dir, p.target.Domain)
 			if dnsResults != nil {
 				p.state.Counters.DNSResolved = len(dnsResults)
+			}
+			if wcData, err := os.ReadFile(filepath.Join(stage1Dir, "wildcard.txt")); err == nil && len(wcData) > 0 {
+				warnings = append(warnings, fmt.Sprintf("Wildcard DNS detected for %s", p.target.Domain))
 			}
 
 			return nil
@@ -221,7 +224,11 @@ func (p *Pipeline) Run(ctx context.Context) error {
 		go func() {
 			defer wg.Done()
 			katanaErr = p.runStage(ctx, "active-crawling", stageDir(3, "active-crawling"), func() error {
-				kErr := p.katana.Run(ctx, liveHostsFile, p.target.Domain, katanaFile, p.opts.Threads)
+				crawlDepth := 3
+				if prof := config.GetProfile(p.opts.Profile); prof.CrawlDepth > 0 {
+					crawlDepth = prof.CrawlDepth
+				}
+				kErr := p.katana.Run(ctx, liveHostsFile, p.target.Domain, katanaFile, p.opts.Threads, crawlDepth)
 				katanaSub := filepath.Join(stageDir(3, "active-crawling"), "katana", "urls.txt")
 				if data, readErr := os.ReadFile(katanaFile); readErr == nil {
 					_ = os.WriteFile(katanaSub, data, 0640)
