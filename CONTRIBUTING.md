@@ -16,3 +16,4 @@ Security intelligence rules live in `knowledge/*.yaml` and are automatically emb
 - `confidence` (`0.0`–`1.0`)
 - Standard mappings (`cwe_id`, `capec_id`, `mitre_attack`, `owasp`)
 - Actionable `remediation`
+

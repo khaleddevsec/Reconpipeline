@@ -19,3 +19,4 @@ func main() {
 	cli.SetVersion(version)
 	cli.Execute()
 }
+

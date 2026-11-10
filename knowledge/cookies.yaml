@@ -43,3 +43,4 @@
   capec_id: CAPEC-62
   owasp: ["A01:2021 - Broken Access Control", "A05:2021 - Security Misconfiguration"]
   remediation: "Specify 'SameSite=Lax' or 'SameSite=Strict' on cookies."
+

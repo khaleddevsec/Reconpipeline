@@ -77,3 +77,4 @@ func initLogger(level string, quiet bool) error {
 	}
 	return nil
 }
+
