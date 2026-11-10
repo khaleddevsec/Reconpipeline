@@ -1,0 +1,62 @@
+# ----- Agent / AI instruction files -----
+AGENTS.md
+ThreatLens_AGENT.md
+
+# ----- Build outputs -----
+/threatlens
+/threatlens.exe
+dist/
+bin/
+
+# ----- Reports & scan data -----
+reports/
+*.db
+*.sqlite
+*.sqlite3
+*.html
+*.png
+
+# ----- Config with real values -----
+config.yaml
+config.yml
+threatlens.yaml
+threatlens.yml
+# keep the example safe
+!config.example.yaml
+
+# ----- Secrets / credentials -----
+.env
+.env.*
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+credentials/
+
+# ----- Go toolchain -----
+vendor/
+
+# ----- IDE / editor -----
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ----- Test artefacts -----
+coverage.out
+coverage.html
+*.test
+*.prof
+
+# ----- Docker -----
+.dockerignore.local
+
+# ----- OS -----
+desktop.ini

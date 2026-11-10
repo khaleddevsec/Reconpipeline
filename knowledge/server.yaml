@@ -1,0 +1,43 @@
+# Server and Technology Disclosure Findings
+# Entries trigger when a technology fingerprint is detected.
+
+- id: SERVER-VERSION-DISCLOSURE
+  title: Web Server Version Disclosure
+  description: >
+    The Server header reveals the web server name and version. Attackers can use
+    this to identify known CVEs for the specific version without active probing.
+  severity: LOW
+  confidence: 0.85
+  fingerprint_category: server
+  cwe_id: CWE-200
+  capec_id: CAPEC-170
+  owasp: ["A05:2021 - Security Misconfiguration"]
+  remediation: >
+    Configure the web server to suppress or obscure the Server header.
+    Nginx: server_tokens off;  Apache: ServerTokens Prod; ServerSignature Off
+
+- id: FRAMEWORK-VERSION-DISCLOSURE
+  title: Framework Version Disclosure
+  description: >
+    The X-Powered-By header reveals the application framework and/or language version.
+    This assists attackers in targeting framework-specific vulnerabilities.
+  severity: LOW
+  confidence: 0.9
+  fingerprint_category: framework
+  cwe_id: CWE-200
+  owasp: ["A05:2021 - Security Misconfiguration"]
+  remediation: >
+    Remove the X-Powered-By header. In PHP: expose_php = Off.
+    In Express.js: app.disable('x-powered-by')
+
+- id: LANGUAGE-DISCLOSURE
+  title: Backend Language Disclosure
+  description: >
+    The response headers reveal the backend programming language and version.
+    Attackers can target known vulnerabilities in end-of-life language versions.
+  severity: LOW
+  confidence: 0.85
+  fingerprint_category: language
+  cwe_id: CWE-200
+  owasp: ["A05:2021 - Security Misconfiguration"]
+  remediation: "Remove or suppress version-disclosing headers such as X-Powered-By."

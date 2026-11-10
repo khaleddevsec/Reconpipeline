@@ -1,0 +1,45 @@
+# Cookie Security Findings
+# Entries trigger when HTTP cookies lack essential security attributes.
+
+- id: COOKIE-MISSING-SECURE
+  title: Cookie Missing Secure Attribute
+  description: >
+    An HTTP cookie was set without the 'Secure' attribute. Without this flag,
+    the browser may transmit the cookie over unencrypted HTTP connections,
+    exposing session tokens to network interception.
+  severity: MEDIUM
+  confidence: 0.90
+  header_name: Cookie-Missing-Secure
+  cwe_id: CWE-614
+  capec_id: CAPEC-102
+  mitre_attack: [T1539]
+  owasp: ["A05:2021 - Security Misconfiguration", "A02:2021 - Cryptographic Failures"]
+  remediation: "Set the 'Secure' flag on all cookies (e.g., Set-Cookie: session=...; Secure; HttpOnly; SameSite=Lax)."
+
+- id: COOKIE-MISSING-HTTPONLY
+  title: Cookie Missing HttpOnly Attribute
+  description: >
+    An HTTP cookie was set without the 'HttpOnly' attribute. Client-side scripts
+    can read this cookie via document.cookie, increasing the impact of XSS attacks
+    through session hijacking.
+  severity: MEDIUM
+  confidence: 0.90
+  header_name: Cookie-Missing-HttpOnly
+  cwe_id: CWE-1004
+  capec_id: CAPEC-31
+  mitre_attack: [T1539]
+  owasp: ["A05:2021 - Security Misconfiguration", "A03:2021 - Injection"]
+  remediation: "Add the 'HttpOnly' attribute to sensitive and session cookies."
+
+- id: COOKIE-MISSING-SAMESITE
+  title: Cookie Missing SameSite Attribute
+  description: >
+    An HTTP cookie was set without an explicit 'SameSite' attribute (Lax or Strict),
+    which increases susceptibility to Cross-Site Request Forgery (CSRF) attacks.
+  severity: LOW
+  confidence: 0.85
+  header_name: Cookie-Missing-SameSite
+  cwe_id: CWE-352
+  capec_id: CAPEC-62
+  owasp: ["A01:2021 - Broken Access Control", "A05:2021 - Security Misconfiguration"]
+  remediation: "Specify 'SameSite=Lax' or 'SameSite=Strict' on cookies."

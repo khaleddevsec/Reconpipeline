@@ -1,0 +1,41 @@
+# ThreatLens (Reconpipeline) configuration example
+# Copy to config.yaml and adjust as needed.
+
+# Number of concurrent scans
+concurrency: 5
+
+# HTTP request timeout (seconds)
+timeout_seconds: 30
+
+# Number of retries on transient network errors
+retries: 3
+
+# Optional HTTP/HTTPS/SOCKS5 proxy (leave empty to use system proxy or none)
+proxy: ""
+
+# Skip TLS certificate verification (self-signed/expired certs are still analysed)
+insecure: false
+
+# Block private/loopback/link-local IP targets (SSRF protection)
+block_private_ips: false
+
+# User-Agent string sent with every request
+user_agent: "ThreatLens/1.0"
+
+# Path to custom offline knowledge database directory (falls back to embedded DB if absent)
+knowledge_db_path: "./knowledge"
+
+# Directory where reports and the SQLite database are written
+output_dir: "./reports"
+
+# Log verbosity: debug | info | warn | error
+verbosity: "info"
+
+# Optional custom request headers sent with every scan
+# headers:
+#   Authorization: "Bearer token"
+
+# Optional pre-defined target list (can also be passed as CLI arguments, -l file, or stdin)
+# targets:
+#   - https://example.com
+#   - https://other.example.org

@@ -1,0 +1,130 @@
+# Security Header Findings
+# Each entry triggers when the named header is absent from the response.
+
+- id: HEADER-HSTS-MISSING
+  title: Missing Strict-Transport-Security (HSTS)
+  description: >
+    The Strict-Transport-Security header is absent. Without HSTS, browsers may
+    downgrade HTTPS connections to HTTP, enabling man-in-the-middle attacks.
+  severity: HIGH
+  confidence: 0.95
+  header_name: Strict-Transport-Security
+  cwe_id: CWE-319
+  capec_id: CAPEC-94
+  mitre_attack: [T1557]
+  owasp: ["A02:2021 - Cryptographic Failures", "A05:2021 - Security Misconfiguration"]
+  remediation: >
+    Add: Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+
+- id: HEADER-CSP-MISSING
+  title: Missing Content-Security-Policy
+  description: >
+    No Content-Security-Policy header is present. Without CSP, the browser has no
+    restrictions on what scripts, styles, or resources can execute, enabling XSS attacks.
+  severity: HIGH
+  confidence: 0.9
+  header_name: Content-Security-Policy
+  cwe_id: CWE-693
+  capec_id: CAPEC-86
+  mitre_attack: [T1059.007]
+  owasp: ["A03:2021 - Injection", "A05:2021 - Security Misconfiguration"]
+  remediation: >
+    Implement a restrictive CSP, e.g.:
+    Content-Security-Policy: default-src 'self'; script-src 'self'; object-src 'none'
+
+- id: HEADER-XCTO-MISSING
+  title: Missing X-Content-Type-Options
+  description: >
+    The X-Content-Type-Options header is absent. Browsers may perform MIME-type sniffing,
+    allowing attackers to execute malicious content uploaded as innocuous file types.
+  severity: MEDIUM
+  confidence: 0.95
+  header_name: X-Content-Type-Options
+  cwe_id: CWE-430
+  owasp: ["A05:2021 - Security Misconfiguration"]
+  remediation: "Add: X-Content-Type-Options: nosniff"
+
+- id: HEADER-XFO-MISSING
+  title: Missing X-Frame-Options
+  description: >
+    The X-Frame-Options header is absent. The page can be embedded in an iframe,
+    enabling clickjacking attacks.
+  severity: MEDIUM
+  confidence: 0.9
+  header_name: X-Frame-Options
+  cwe_id: CWE-1021
+  capec_id: CAPEC-103
+  owasp: ["A05:2021 - Security Misconfiguration"]
+  remediation: "Add: X-Frame-Options: DENY  (or use CSP frame-ancestors)"
+
+- id: HEADER-RP-MISSING
+  title: Missing Referrer-Policy
+  description: >
+    No Referrer-Policy header is set. By default, browsers may leak the full URL in
+    Referer headers to third-party sites, exposing sensitive path or query parameters.
+  severity: LOW
+  confidence: 0.85
+  header_name: Referrer-Policy
+  cwe_id: CWE-200
+  owasp: ["A01:2021 - Broken Access Control"]
+  remediation: "Add: Referrer-Policy: strict-origin-when-cross-origin"
+
+- id: HEADER-PP-MISSING
+  title: Missing Permissions-Policy
+  description: >
+    The Permissions-Policy (formerly Feature-Policy) header is absent. Without it,
+    the browser may allow access to sensitive APIs (camera, microphone, geolocation)
+    from untrusted embedded content.
+  severity: LOW
+  confidence: 0.8
+  header_name: Permissions-Policy
+  cwe_id: CWE-693
+  owasp: ["A05:2021 - Security Misconfiguration"]
+  remediation: >
+    Add: Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+- id: HEADER-HSTS-WEAK
+  title: Weak Strict-Transport-Security (HSTS) Configuration
+  description: >
+    The Strict-Transport-Security header is present but configured with max-age=0
+    or a duration shorter than 6 months (15768000 seconds), leaving users exposed
+    to SSL stripping attacks.
+  severity: MEDIUM
+  confidence: 0.90
+  header_name: Weak-Strict-Transport-Security
+  cwe_id: CWE-319
+  capec_id: CAPEC-94
+  owasp: ["A02:2021 - Cryptographic Failures", "A05:2021 - Security Misconfiguration"]
+  remediation: >
+    Set HSTS max-age to at least 31536000 (1 year) and includeSubDomains:
+    Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+
+- id: HEADER-CSP-UNSAFE
+  title: Permissive or Unsafe Content-Security-Policy
+  description: >
+    The Content-Security-Policy header contains 'unsafe-inline', 'unsafe-eval',
+    or wildcard (*) sources, which weakens XSS protection.
+  severity: MEDIUM
+  confidence: 0.85
+  header_name: Unsafe-Content-Security-Policy
+  cwe_id: CWE-693
+  capec_id: CAPEC-86
+  mitre_attack: [T1059.007]
+  owasp: ["A03:2021 - Injection", "A05:2021 - Security Misconfiguration"]
+  remediation: >
+    Remove 'unsafe-inline', 'unsafe-eval', and wildcard (*) sources from CSP;
+    use nonces or hashes for inline scripts.
+
+- id: HEADER-CORS-WILDCARD
+  title: Overly Permissive CORS Policy (Wildcard Origin)
+  description: >
+    The Access-Control-Allow-Origin header is set to '*', allowing any external
+    domain to read responses from this endpoint via cross-origin requests.
+  severity: MEDIUM
+  confidence: 0.85
+  header_name: Permissive-CORS
+  cwe_id: CWE-942
+  capec_id: CAPEC-111
+  owasp: ["A01:2021 - Broken Access Control", "A05:2021 - Security Misconfiguration"]
+  remediation: >
+    Restrict Access-Control-Allow-Origin to explicit trusted origins instead of '*'.

@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build Multi-Platform Releases
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build Binaries
+        run: |
+          mkdir -p dist
+          VERSION=$(git describe --tags --always --dirty)
+          LDFLAGS="-s -w -X main.version=${VERSION} -X github.com/khaleddevsec/Reconpipeline/pkg/cli.Version=${VERSION}"
+
+          # Linux AMD64 & ARM64
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/threatlens_linux_amd64 ./cmd/threatlens
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/threatlens_linux_arm64 ./cmd/threatlens
+
+          # Windows AMD64 & ARM64
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/threatlens_windows_amd64.exe ./cmd/threatlens
+          CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/threatlens_windows_arm64.exe ./cmd/threatlens
+
+          # macOS (Darwin) AMD64 & ARM64 (Apple Silicon)
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/threatlens_darwin_amd64 ./cmd/threatlens
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/threatlens_darwin_arm64 ./cmd/threatlens
+
+          cd dist
+          sha256sum * > checksums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
