@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/khaleddevsec/Reconpipeline/internal/config"
+	"github.com/khaleddevsec/Reconpipeline/v2/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

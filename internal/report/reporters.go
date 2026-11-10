@@ -8,7 +8,7 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/khaleddevsec/Reconpipeline/models"
+	"github.com/khaleddevsec/Reconpipeline/v2/models"
 	"go.uber.org/zap"
 )
 

@@ -3,7 +3,7 @@ package parser
 import (
 	"context"
 
-	"github.com/khaleddevsec/Reconpipeline/models"
+	"github.com/khaleddevsec/Reconpipeline/v2/models"
 )
 
 // Parser normalises raw CollectedData into clean, enriched internal models.

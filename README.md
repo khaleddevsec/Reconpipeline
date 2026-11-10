@@ -1,6 +1,6 @@
 # Reconpipeline (ThreatLens)
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/khaleddevsec/Reconpipeline.svg)](https://pkg.go.dev/github.com/khaleddevsec/Reconpipeline)
+[![Go Reference](https://pkg.go.dev/badge/github.com/khaleddevsec/Reconpipeline/v2.svg)](https://pkg.go.dev/github.com/khaleddevsec/Reconpipeline/v2)
 [![CI](https://github.com/khaleddevsec/Reconpipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/khaleddevsec/Reconpipeline/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -39,9 +39,9 @@ Reconpipeline (ThreatLens) collects HTTP and TLS metadata from websites and corr
 ### With `go install` (Recommended)
 
 ```sh
-go install github.com/khaleddevsec/Reconpipeline@latest
+go install github.com/khaleddevsec/Reconpipeline/v2@latest
 # or install as threatlens binary:
-go install github.com/khaleddevsec/Reconpipeline/cmd/threatlens@latest
+go install github.com/khaleddevsec/Reconpipeline/v2/cmd/threatlens@latest
 ```
 
 ### From source

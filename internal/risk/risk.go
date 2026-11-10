@@ -3,7 +3,7 @@ package risk
 import (
 	"context"
 
-	"github.com/khaleddevsec/Reconpipeline/models"
+	"github.com/khaleddevsec/Reconpipeline/v2/models"
 )
 
 // Engine calculates risk scores and produces remediation recommendations.

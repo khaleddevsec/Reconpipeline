@@ -2,9 +2,9 @@
 // HTTP/TLS metadata and correlates findings with MITRE ATT&CK, CAPEC, CWE, and OWASP.
 package main
 
-import "github.com/khaleddevsec/Reconpipeline/pkg/cli"
+import "github.com/khaleddevsec/Reconpipeline/v2/pkg/cli"
 
-var version = "v1.0.0"
+var version = "v2.5.0"
 
 func main() {
 	cli.SetVersion(version)

@@ -3,7 +3,7 @@ package collector
 import (
 	"context"
 
-	"github.com/khaleddevsec/Reconpipeline/models"
+	"github.com/khaleddevsec/Reconpipeline/v2/models"
 )
 
 // Collector defines the contract for raw HTTP metadata collection.

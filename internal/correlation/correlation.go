@@ -3,7 +3,7 @@ package correlation
 import (
 	"context"
 
-	"github.com/khaleddevsec/Reconpipeline/models"
+	"github.com/khaleddevsec/Reconpipeline/v2/models"
 )
 
 // Engine correlates raw findings into meaningful attack scenarios.

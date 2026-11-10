@@ -8,12 +8,12 @@
 //
 // Or:
 //
-//	go install github.com/khaleddevsec/Reconpipeline/cmd/threatlens@latest
+//	go install github.com/khaleddevsec/Reconpipeline/v2/cmd/threatlens@latest
 package main
 
-import "github.com/khaleddevsec/Reconpipeline/pkg/cli"
+import "github.com/khaleddevsec/Reconpipeline/v2/pkg/cli"
 
-var version = "v1.0.0"
+var version = "v2.5.0"
 
 func main() {
 	cli.SetVersion(version)

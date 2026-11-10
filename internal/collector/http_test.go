@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/khaleddevsec/Reconpipeline/internal/collector"
-	"github.com/khaleddevsec/Reconpipeline/internal/config"
-	"github.com/khaleddevsec/Reconpipeline/models"
+	"github.com/khaleddevsec/Reconpipeline/v2/internal/collector"
+	"github.com/khaleddevsec/Reconpipeline/v2/internal/config"
+	"github.com/khaleddevsec/Reconpipeline/v2/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"

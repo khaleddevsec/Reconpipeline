@@ -27,7 +27,6 @@ var rootCmd = &cobra.Command{
 	Long: `ThreatLens collects HTTP/TLS metadata and correlates findings with
 MITRE ATT&CK, CAPEC, CWE, OWASP, and security best practices
 to explain attack paths, risks, and mitigations.`,
-	SilenceUsage: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		return initLogger(verbosity, silent)
 	},

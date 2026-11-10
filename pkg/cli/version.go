@@ -6,8 +6,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Version is set at build time via -ldflags "-X github.com/khaleddevsec/Reconpipeline/pkg/cli.Version=x.y.z".
-var Version = "v1.0.0"
+// Version is set at build time via -ldflags "-X github.com/khaleddevsec/Reconpipeline/v2/pkg/cli.Version=x.y.z".
+var Version = "v2.5.0"
 
 // SetVersion allows main packages to override the build-time version string.
 func SetVersion(v string) {

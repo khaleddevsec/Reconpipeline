@@ -3,7 +3,7 @@ package utils_test
 import (
 	"testing"
 
-	"github.com/khaleddevsec/Reconpipeline/pkg/utils"
+	"github.com/khaleddevsec/Reconpipeline/v2/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

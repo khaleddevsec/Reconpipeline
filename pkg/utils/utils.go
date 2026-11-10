@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/khaleddevsec/Reconpipeline/models"
+	"github.com/khaleddevsec/Reconpipeline/v2/models"
 )
 
 // NewID returns a cryptographically random 32-character hex ID.

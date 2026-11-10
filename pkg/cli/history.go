@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"text/tabwriter"
 
-	"github.com/khaleddevsec/Reconpipeline/internal/database"
+	"github.com/khaleddevsec/Reconpipeline/v2/internal/database"
 	"github.com/spf13/cobra"
 )
 

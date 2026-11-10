@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/khaleddevsec/Reconpipeline/internal/config"
-	"github.com/khaleddevsec/Reconpipeline/models"
+	"github.com/khaleddevsec/Reconpipeline/v2/internal/config"
+	"github.com/khaleddevsec/Reconpipeline/v2/models"
 	"go.uber.org/zap"
 )
 

@@ -3,7 +3,7 @@ package fingerprint
 import (
 	"context"
 
-	"github.com/khaleddevsec/Reconpipeline/models"
+	"github.com/khaleddevsec/Reconpipeline/v2/models"
 )
 
 // Engine identifies technologies (server, framework, CMS, CDN, WAF) from collected data.

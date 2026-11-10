@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/khaleddevsec/Reconpipeline/internal/knowledge"
-	"github.com/khaleddevsec/Reconpipeline/models"
+	"github.com/khaleddevsec/Reconpipeline/v2/internal/knowledge"
+	"github.com/khaleddevsec/Reconpipeline/v2/models"
 	"go.uber.org/zap"
 )
 

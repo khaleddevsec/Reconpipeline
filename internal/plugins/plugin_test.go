@@ -3,7 +3,7 @@ package plugins_test
 import (
 	"testing"
 
-	"github.com/khaleddevsec/Reconpipeline/internal/plugins"
+	"github.com/khaleddevsec/Reconpipeline/v2/internal/plugins"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

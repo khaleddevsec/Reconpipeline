@@ -1,6 +1,6 @@
-module github.com/khaleddevsec/Reconpipeline
+module github.com/khaleddevsec/Reconpipeline/v2
 
-go 1.25.0
+go 1.26
 
 require (
 	github.com/spf13/cobra v1.8.1

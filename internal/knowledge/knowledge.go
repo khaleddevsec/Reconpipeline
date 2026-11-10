@@ -1,7 +1,7 @@
 package knowledge
 
 import (
-	"github.com/khaleddevsec/Reconpipeline/models"
+	"github.com/khaleddevsec/Reconpipeline/v2/models"
 )
 
 // DB defines the interface for the offline knowledge database.

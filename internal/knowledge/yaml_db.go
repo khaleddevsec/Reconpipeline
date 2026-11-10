@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
-	knowledgefs "github.com/khaleddevsec/Reconpipeline/knowledge"
-	"github.com/khaleddevsec/Reconpipeline/models"
+	knowledgefs "github.com/khaleddevsec/Reconpipeline/v2/knowledge"
+	"github.com/khaleddevsec/Reconpipeline/v2/models"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
