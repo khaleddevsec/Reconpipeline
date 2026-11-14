@@ -4,7 +4,7 @@
 //
 // Install with:
 //
-//	go install github.com/khaleddevsec/Reconpipeline@latest
+//	go install github.com/khaleddevsec/Reconpipeline/v2@latest
 //
 // Or:
 //
@@ -19,4 +19,3 @@ func main() {
 	cli.SetVersion(version)
 	cli.Execute()
 }
-

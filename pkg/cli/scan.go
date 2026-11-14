@@ -450,4 +450,3 @@ func checkFailThreshold(rep *models.Report, threshold string) (bool, error) {
 	}
 	return false, nil
 }
-

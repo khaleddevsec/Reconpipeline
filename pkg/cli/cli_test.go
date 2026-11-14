@@ -50,4 +50,3 @@ func TestCheckFailThreshold(t *testing.T) {
 	_, err = checkFailThreshold(rep, "unknown")
 	assert.Error(t, err)
 }
-

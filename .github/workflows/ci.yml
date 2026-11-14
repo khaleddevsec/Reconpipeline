@@ -10,6 +10,9 @@ jobs:
   test:
     name: Build & Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
@@ -38,7 +41,7 @@ jobs:
         run: go vet ./...
 
       - name: Run Tests
-        run: go test -v -cover -coverprofile=coverage.out ./...
+        run: go test -v -cover -coverprofile coverage.out ./...
 
       - name: Run Race Detector (Linux)
         if: runner.os == 'Linux'
